@@ -1,4 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import type { InstrumentType } from '../../../domain/trading/trading.types.js';
 
 @Entity('instruments')
 export class InstrumentEntity {
@@ -12,6 +13,5 @@ export class InstrumentEntity {
   name!: string;
 
   @Column({ type: 'varchar', length: 10 })
-  type!: string; // 'ACCIONES' | 'MONEDA'
+  type!: InstrumentType;
 }
-

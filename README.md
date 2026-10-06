@@ -1,124 +1,117 @@
+# Cocos Capital · Backend Challenge
+
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <img src="docs/pictures/cocos.jpg" alt="Logo de Cocos Capital" width="220" />
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API REST de inversiones para buscar instrumentos, enviar órdenes y consultar el portfolio de un usuario. Desarrollada con Node.js, NestJS, TypeScript y PostgreSQL.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+**Estado:** en desarrollo. La infraestructura y los cálculos compartidos están implementados; los tres endpoints de negocio están pendientes.
 
-## Description
+## Alcance y estado
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+| Funcionalidad            | Alcance                                                                 | Estado       |
+| ------------------------ | ----------------------------------------------------------------------- | ------------ |
+| Búsqueda de instrumentos | Coincidencias por ticker y/o nombre.                                    | Pendiente    |
+| Envío de órdenes         | BUY/SELL, MARKET/LIMIT, cantidad o monto en ARS y registro de rechazos. | Pendiente    |
+| Portfolio                | Efectivo disponible, valor total, posiciones y rendimiento.             | Pendiente    |
+| Health                   | Disponibilidad de la aplicación y su conexión a PostgreSQL.             | Implementado |
 
-## Project setup
+La base actual incluye precisión monetaria con `decimal.js`, reconstrucción de recursos desde movimientos ejecutados, lecturas de cotizaciones y tests unitarios de dinero, recursos y health.
 
-```bash
-$ npm install
-```
+La entrega debe incluir ejecución local reproducible, test funcional de envío de órdenes y decisiones documentadas.
 
-## Compile and run the project
+## Stack
 
-```bash
-# development
-$ npm run start
+| Área          | Herramientas                            |
+| ------------- | --------------------------------------- |
+| API           | NestJS y TypeScript estricto            |
+| Persistencia  | PostgreSQL, TypeORM y `pg`              |
+| Dinero        | `decimal.js`                            |
+| Validación    | `class-validator` y `class-transformer` |
+| Pruebas       | Vitest, Nest Testing y Supertest        |
+| Contrato HTTP | Swagger / OpenAPI                       |
 
-# watch mode
-$ npm run start:dev
+## Ejecución local
 
-# production mode
-$ npm run start:prod
-```
+### Requisitos
 
-## Run tests
+- Node.js 24, la versión utilizada por el Dockerfile, y npm.
+- Docker con Compose para PostgreSQL local, o una instancia PostgreSQL accesible con los datos del challenge.
+
+### Preparación
+
+Desde la raíz del proyecto:
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm ci
+cp .env.example .env
+npm run db:up
 ```
 
-## Deployment
+Configurar `DATABASE_URL` en `.env` para la base elegida. El archivo de ejemplo también incluye `PORT` y `NODE_ENV`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Compose prepara PostgreSQL local y carga el seed al crear su volumen. Si se utiliza la base proporcionada, configurar su URL y omitir `db:up`: esa base ya tiene datos. La [guía de PostgreSQL](database/README.md) explica TLS, migraciones y la base de pruebas. El Dockerfile contiene la API.
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+Las variables se validan al arrancar. Las conexiones remotas usan TLS por defecto, verificando el certificado; las migraciones se ejecutan mediante comandos explícitos.
+
+### Iniciar la API
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm run start:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+Con el puerto predeterminado:
 
-## Observability
+| Recurso | Dirección                                                        |
+| ------- | ---------------------------------------------------------------- |
+| Health  | [http://localhost:3000/health](http://localhost:3000/health)     |
+| Swagger | [http://localhost:3000/api/docs](http://localhost:3000/api/docs) |
 
-In production applications, observability is essential for understanding how your system behaves, detecting issues early, and maintaining reliable performance.
+Swagger mostrará los endpoints de negocio a medida que se implementen.
 
-[NestJS Observe](https://observe.nestjs.com) automatically instruments your NestJS application, giving you deep visibility into your system with minimal setup:
-
-- **Distributed tracing:** Follow requests across services and understand how they flow through your system.
-- **Waterfall analysis:** Visualize request execution and identify slow operations, bottlenecks, and unexpected delays.
-- **Performance analysis:** Analyze application performance in real time and quickly pinpoint areas that need optimization.
-- **Metrics:** Track key application and infrastructure metrics to understand system health and performance trends.
-- **Logging:** Centralize and correlate logs with traces and other telemetry to make debugging easier.
-- **Error tracking:** Detect errors quickly and investigate their root causes with the surrounding context.
-- **SLA monitoring:** Track service-level objectives and identify when your application is approaching or exceeding defined thresholds.
-- **Alarms and alerts:** Set up alerts for critical errors, performance degradation, SLA violations, and other anomalies so your team can react quickly.
-
-To add it to this project:
+Para ejecutar el código compilado:
 
 ```bash
-$ npm install @nestjs/observe
+npm run build
+npm run start:prod
 ```
 
-Then follow the [setup guide](https://docs.nestjs.com/observability/overview) - it takes a single import and an app key.
+## Verificaciones
 
-The free plan needs no payment details and covers 300,000 events a month. You can also browse the [live demo](https://www.observe-demo.nestjs.com/dashboard) first - the whole dashboard over a busy service's data, with nothing to install.
+| Acción                  | Comando                                                 | Base de datos |
+| ----------------------- | ------------------------------------------------------- | ------------- |
+| Tipos, incluyendo tests | `npx tsc --noEmit --incremental false -p tsconfig.json` | No            |
+| Lint                    | `npm run lint`                                          | No            |
+| Build                   | `npm run build`                                         | No            |
+| Tests unitarios         | `npm test`                                              | No            |
+| Tests HTTP/e2e          | `npm run test:e2e`                                      | Sí            |
 
-## Resources
+Antes de ejecutar e2e, iniciar la base aislada con `npm run db:up:test`. Estas pruebas usan `cocos_test` en el puerto `5433`, sin leer `.env`; el e2e existente cubre health. El test funcional de órdenes está pendiente.
 
-Check out a few resources that may come in handy when working with NestJS:
+## Organización
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Auto-instrument your application with [NestJS Observe](https://observe.nestjs.com). Distributed tracing, metrics, and logging made easy. Error tracking and performance monitoring for your NestJS applications.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Monolito modular con separación liviana de dominio, aplicación e infraestructura.
 
-## Support
+```text
+src/
+├── instruments/  # Búsqueda de activos
+├── orders/       # Creación y ejecución de órdenes
+├── portfolio/    # Valuación y rendimiento
+├── shared/       # Dinero, recursos y persistencia reutilizados
+└── health/       # Disponibilidad
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+La [guía de arquitectura](docs/architecture.md) explica los límites entre módulos. Las decisiones financieras se documentan en [supuestos](docs/assumptions.md).
 
-## Stay in touch
+## Documentación
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
-
-## License
-
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+| Documento                                            | Contenido                                                        |
+| ---------------------------------------------------- | ---------------------------------------------------------------- |
+| [Índice técnico](docs/README.md)                     | Organización de la documentación y cuándo actualizarla.          |
+| [Arquitectura](docs/architecture.md)                 | Responsabilidades y estrategia de consistencia.                  |
+| [Supuestos funcionales](docs/assumptions.md)         | Criterios financieros, motivos y decisiones pendientes.          |
+| [Base de datos](database/README.md)                  | Preparación local, particularidades del seed y migraciones.      |
+| [Evidencias de performance](docs/evidence/README.md) | Comparaciones, capturas, consultas y procedimientos de medición. |
+| [Elementos compartidos](src/shared/README.md)        | Comportamiento de dinero, recursos y lecturas comunes.           |
+| [Guía para agentes](AGENTS.md)                       | Convenciones y contexto para continuar el desarrollo.            |

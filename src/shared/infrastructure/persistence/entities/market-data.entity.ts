@@ -26,4 +26,3 @@ export class MarketDataEntity {
   @Column({ type: 'date' })
   date!: string;
 }
-

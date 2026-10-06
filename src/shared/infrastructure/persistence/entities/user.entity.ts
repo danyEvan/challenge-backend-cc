@@ -8,7 +8,11 @@ export class UserEntity {
   @Column({ type: 'varchar', length: 255, nullable: true })
   email!: string | null;
 
-  @Column({ name: 'accountnumber', type: 'varchar', length: 20, nullable: true })
+  @Column({
+    name: 'accountnumber',
+    type: 'varchar',
+    length: 20,
+    nullable: true,
+  })
   accountNumber!: string | null;
 }
-

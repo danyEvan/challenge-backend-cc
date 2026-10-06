@@ -1,15 +1,16 @@
-import { Controller, Get, HttpStatus, Optional, Res } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import type { Response } from 'express';
 
 @ApiTags('Health')
 @Controller('health')
 export class HealthController {
-  constructor(@Optional() private readonly dataSource?: DataSource) {}
+  constructor(@InjectDataSource() private readonly dataSource: DataSource) {}
 
   @Get()
-  @ApiOperation({ summary: 'Liveness and readiness health check probe' })
+  @ApiOperation({ summary: 'Application and database readiness check' })
   @ApiResponse({
     status: 200,
     description: 'Application is healthy and running',
@@ -34,11 +35,15 @@ export class HealthController {
       },
     },
   })
+  @ApiResponse({
+    status: 503,
+    description: 'Database is unavailable or not initialized',
+  })
   async check(@Res({ passthrough: true }) res: Response) {
-    let dbStatus = 'up';
+    let dbStatus = 'down';
     let dbLatency: number | null = null;
 
-    if (this.dataSource && this.dataSource.isInitialized) {
+    if (this.dataSource.isInitialized) {
       try {
         const start = performance.now();
         await this.dataSource.query('SELECT 1');

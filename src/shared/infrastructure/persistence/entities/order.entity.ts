@@ -1,4 +1,9 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import type {
+  OrderSide,
+  OrderStatus,
+  OrderType,
+} from '../../../domain/trading/trading.types.js';
 
 @Entity('orders')
 export class OrderEntity {
@@ -18,15 +23,14 @@ export class OrderEntity {
   price!: string;
 
   @Column({ type: 'varchar', length: 10 })
-  type!: string; // 'MARKET' | 'LIMIT'
+  type!: OrderType;
 
   @Column({ type: 'varchar', length: 10 })
-  side!: string; // 'BUY' | 'SELL' | 'CASH_IN' | 'CASH_OUT'
+  side!: OrderSide;
 
   @Column({ type: 'varchar', length: 20 })
-  status!: string; // 'NEW' | 'FILLED' | 'REJECTED' | 'CANCELLED'
+  status!: OrderStatus;
 
   @Column({ type: 'timestamp' })
   datetime!: Date;
 }
-
