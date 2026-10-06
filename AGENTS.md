@@ -2,9 +2,10 @@
 
 ## Inicio
 
-1. Leer [.agents/context.md](.agents/context.md) para conocer el estado del trabajo y confirmar los archivos relevantes.
+1. Si existe, leer `.agents/context.md` para conocer el estado del trabajo y confirmar los archivos relevantes. Es contexto local, no versionado; en un checkout nuevo, consultar el README y las guías técnicas.
 2. Consultar las [guías técnicas](docs/README.md) del tema que se vaya a modificar.
 3. Para código de negocio, leer [.agents/rules/trading-architecture.md](.agents/rules/trading-architecture.md). Para persistencia o performance, leer [.agents/rules/database-performance.md](.agents/rules/database-performance.md).
+4. Para diseñar, implementar o revisar endpoints REST, DTOs o contratos HTTP, leer [.agents/rules/rest-api-standard.md](.agents/rules/rest-api-standard.md).
 
 Las reglas complementarias se leen por estas referencias aunque la herramienta no descubra automáticamente `.agents/rules/`.
 

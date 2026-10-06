@@ -1,14 +1,13 @@
 {
-  "name": "backend-challenge-cocos-capital",
-  "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "name": "challenge-backend-cc",
+  "version": "1.0.0",
+  "description": "Backend challenge for Senior Backend Developer position at Cocos Capital",
+  "author": "Daniel Evangelisto",
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "build": "nest build",
-    "deploy": "nest deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -21,11 +20,15 @@
     "migration:run": "npm run build && node --env-file-if-exists=.env ./node_modules/typeorm/cli.js migration:run -d dist/shared/infrastructure/persistence/data-source.js",
     "migration:revert": "npm run build && node --env-file-if-exists=.env ./node_modules/typeorm/cli.js migration:revert -d dist/shared/infrastructure/persistence/data-source.js",
     "lint": "oxlint --type-aware src/ test/",
+    "typecheck": "tsc --noEmit --incremental false -p tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts"
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
+    "verify": "npm run format:check && npm run typecheck && npm run lint && npm test && npm run build",
+    "verify:all": "npm run verify && npm run db:up:test && npm run test:e2e"
   },
   "dependencies": {
     "@nestjs/common": "^12.0.1",
@@ -44,7 +47,6 @@
   },
   "devDependencies": {
     "@nestjs/cli": "^12.0.0",
-    "@nestjs/mau": "^0.0.6",
     "@nestjs/schematics": "^12.0.0",
     "@nestjs/testing": "^12.0.1",
     "@types/express": "^5.0.0",

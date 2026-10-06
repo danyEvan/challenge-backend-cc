@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { TradingReader } from '../../application/ports/trading-reader.port.js';
+import { TradingRepository } from '../../application/ports/trading.repository.js';
 import { MarketDataEntity } from './entities/market-data.entity.js';
 import { OrderEntity } from './entities/order.entity.js';
 import { UserEntity } from './entities/user.entity.js';
-import { TypeOrmTradingReader } from './typeorm-trading-reader.js';
+import { TradingTypeOrmRepository } from './trading-typeorm.repository.js';
 
 @Module({
   imports: [
@@ -13,12 +13,12 @@ import { TypeOrmTradingReader } from './typeorm-trading-reader.js';
   ],
   providers: [
     {
-      provide: TradingReader,
+      provide: TradingRepository,
       useFactory: (dataSource: DataSource) =>
-        new TypeOrmTradingReader(dataSource.manager),
+        new TradingTypeOrmRepository(dataSource.manager),
       inject: [DataSource],
     },
   ],
-  exports: [TradingReader],
+  exports: [TradingRepository],
 })
 export class TradingReadModule {}

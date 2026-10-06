@@ -1,6 +1,6 @@
-# Supuestos y criterios funcionales
+# Supuestos y decisiones
 
-Este documento reúne las decisiones tomadas donde el alcance admite más de una interpretación. Las reglas explícitas del challenge se conservan; las decisiones pendientes se indican al final.
+Este documento reúne los criterios funcionales y las decisiones técnicas relevantes para el alcance actual. Las reglas explícitas del challenge se conservan; las decisiones pendientes se indican al final.
 
 ## Disponibilidad y órdenes
 
@@ -19,6 +19,20 @@ La política sin reservas permite que varias LIMIT `NEW` superen, en conjunto, l
 
 La reconstrucción de recursos y la selección de cotizaciones están implementadas. La creación de órdenes, sus validaciones y su contrato HTTP están pendientes.
 
+## Catálogo de instrumentos
+
+`GET /instruments` expone únicamente activos negociables de tipo `ACCIONES`. El registro `ARS` de tipo `MONEDA` representa el efectivo usado para reconstruir la cuenta y el portfolio; no puede enviarse en órdenes `BUY`/`SELL` y no forma parte del catálogo público.
+
+Los instrumentos con tipo nulo o desconocido tampoco se presentan como negociables. Incorporar un nuevo tipo al catálogo requiere decidir explícitamente que admite órdenes y agregarlo al contrato, en lugar de exponerlo automáticamente por existir en la tabla.
+
+### Búsqueda e índices
+
+Se revisó la extensión [`pg_trgm`](https://www.postgresql.org/docs/17/pgtrgm.html#PGTRGM-INDEX) como alternativa para acelerar búsquedas por subcadena. Permite crear índices compatibles con consultas `ILIKE '%texto%'` sobre ticker y nombre.
+
+Por ahora se mantiene la consulta sin agregar esa extensión ni índices de búsqueda. El SQL provisto contiene 66 instrumentos y no hay mediciones que justifiquen esos cambios para el catálogo actual. Esta es una decisión de alcance; no se hizo una comparación de rendimiento con y sin índices.
+
+Si aumenta el volumen o aparecen demoras, se revisará el plan con `EXPLAIN (ANALYZE, BUFFERS)` y se compararán alternativas con datos representativos antes de incorporar una migración.
+
 ## Portfolio
 
 | Tema                  | Criterio elegido                                                                                                                                                                                      |
@@ -35,7 +49,7 @@ El rendimiento diario calculado con `previousClose` es otro indicador. Su inclus
 ## Alcance y decisiones pendientes
 
 - Los tres endpoints no requieren autenticación ni simulación del mercado. Cancelación e idempotencia son ampliaciones opcionales.
-- Definir nombres de campos, códigos HTTP, formato de importes y estructura de errores al implementar el contrato.
+- Búsqueda, paginación y errores HTTP compartidos definidos en el [contrato implementado](api/README.md). Definir campos, importes y errores de negocio de órdenes y portfolio al implementar sus flujos.
 - Resolver el precio enviado en una MARKET y el monto inferior al precio de una acción.
 - Definir la respuesta HTTP para historial inválido y cotizaciones ausentes, conservando los criterios anteriores.
 

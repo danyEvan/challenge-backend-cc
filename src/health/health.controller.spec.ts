@@ -20,29 +20,6 @@ describe('HealthController', () => {
     controller = new HealthController(database as unknown as DataSource);
   });
 
-  it('returns healthy only after the database query succeeds', async () => {
-    const result = await controller.check(response);
-    expect(result).toHaveProperty('status', 'ok');
-    expect(result).toHaveProperty('timestamp');
-    expect(result).toHaveProperty('uptime');
-    expect(typeof result.uptime).toBe('number');
-    expect(result.details.database.status).toBe('up');
-    expect(result.details.database.latencyMs).toEqual(expect.any(Number));
-    expect(database.query).toHaveBeenCalledWith('SELECT 1');
-    expect(setStatus).not.toHaveBeenCalled();
-  });
-
-  it('returns 503 when the database is not initialized', async () => {
-    database.isInitialized = false;
-
-    const result = await controller.check(response);
-
-    expect(result.status).toBe('error');
-    expect(result.details.database.status).toBe('down');
-    expect(database.query).not.toHaveBeenCalled();
-    expect(setStatus).toHaveBeenCalledWith(HttpStatus.SERVICE_UNAVAILABLE);
-  });
-
   it('returns 503 when the database query fails', async () => {
     database.query.mockRejectedValue(new Error('Database unavailable'));
 

@@ -24,10 +24,11 @@ describe('HealthController (e2e)', () => {
       .expect(200);
 
     expect(response.body).toHaveProperty('status', 'ok');
+    expect(response.body).toHaveProperty('details.database.status', 'up');
     expect(response.body).toHaveProperty('timestamp');
   });
 
   afterEach(async () => {
-    await app.close();
+    await app?.close();
   });
 });

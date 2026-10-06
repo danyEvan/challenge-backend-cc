@@ -47,7 +47,7 @@ export class Money {
     return new Arithmetic(this.value);
   }
 
-  // Keep intermediate precision; round to ARS cents only for presentation.
+  // Conservamos precision interna y redondeamos a centavos al presentar
   toString(): string {
     const rounded = this.value.toDecimalPlaces(2);
     return rounded.isZero() ? '0.00' : rounded.toFixed(2);

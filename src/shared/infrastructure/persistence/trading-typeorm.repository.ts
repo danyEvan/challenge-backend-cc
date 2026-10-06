@@ -1,5 +1,5 @@
 import type { EntityManager } from 'typeorm';
-import { TradingReader } from '../../application/ports/trading-reader.port.js';
+import { TradingRepository } from '../../application/ports/trading.repository.js';
 import { Money } from '../../domain/money/money.js';
 import type { AccountMovement } from '../../domain/account/account-movement.js';
 import type { MarketQuote } from '../../domain/trading/market-quote.js';
@@ -8,8 +8,8 @@ import { MarketDataEntity } from './entities/market-data.entity.js';
 import { OrderEntity } from './entities/order.entity.js';
 import { UserEntity } from './entities/user.entity.js';
 
-export class TypeOrmTradingReader extends TradingReader {
-  // Order persistence can create this adapter with its transaction's manager.
+export class TradingTypeOrmRepository extends TradingRepository {
+  // Usamos el mismo manager para leer, bloquear y guardar la orden.
   constructor(private readonly manager: EntityManager) {
     super();
   }

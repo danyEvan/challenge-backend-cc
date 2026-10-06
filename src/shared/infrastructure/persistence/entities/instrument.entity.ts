@@ -6,12 +6,12 @@ export class InstrumentEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ type: 'varchar', length: 10 })
-  ticker!: string;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  ticker!: string | null;
 
-  @Column({ type: 'varchar', length: 255 })
-  name!: string;
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  name!: string | null;
 
-  @Column({ type: 'varchar', length: 10 })
-  type!: InstrumentType;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  type!: InstrumentType | null;
 }

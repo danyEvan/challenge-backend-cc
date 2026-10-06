@@ -1,0 +1,46 @@
+@baseUrl = http://localhost:3000
+
+### Application and database readiness - 200
+# Ejecutar primero. Con API y PostgreSQL disponibles responde 200.
+GET {{baseUrl}}/health
+Accept: application/json, application/problem+json
+
+### Search by ticker - 200
+# Con el seed provisto devuelve GGAL (id 34).
+GET {{baseUrl}}/instruments?search=ggal
+Accept: application/json, application/problem+json
+
+### Search by name - 200
+# Busca Grupo Financiero en el nombre.
+GET {{baseUrl}}/instruments?search=Grupo%20Financiero
+Accept: application/json, application/problem+json
+
+### Currency is not a tradable instrument - 200
+# ARS representa efectivo interno y no forma parte del catálogo: data=[].
+GET {{baseUrl}}/instruments?search=ARS
+Accept: application/json, application/problem+json
+
+### Catalog first page - 200
+# Sin search lista únicamente activos negociables. Hasta 20 elementos.
+GET {{baseUrl}}/instruments?limit=20&offset=0
+Accept: application/json, application/problem+json
+
+### Catalog second page - 200
+# Hasta 20 elementos en data, meta.limit=20 y meta.offset=20.
+GET {{baseUrl}}/instruments?limit=20&offset=20
+Accept: application/json, application/problem+json
+
+### No matches - 200
+# Con el seed provisto devuelve data=[], meta.limit=20 y meta.offset=0.
+GET {{baseUrl}}/instruments?search=instrumento-inexistente
+Accept: application/json, application/problem+json
+
+### Literal SQL wildcard - 200
+# Busca el carácter % literal.
+GET {{baseUrl}}/instruments?search=%25
+Accept: application/json, application/problem+json
+
+### Invalid pagination - 400
+# Caso de error intencional: 400, limit mayor que 100.
+GET {{baseUrl}}/instruments?limit=101
+Accept: application/json, application/problem+json

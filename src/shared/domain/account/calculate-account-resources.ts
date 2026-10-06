@@ -14,7 +14,7 @@ export function calculateAccountResources(
   const positions = new Map<number, number>();
 
   for (const movement of movements) {
-    // Policy: NEW orders do not reserve resources in this challenge.
+    // Las ordenes NEW no reservan
     if (movement.status !== OrderStatus.FILLED) continue;
 
     if (!Number.isSafeInteger(movement.size) || movement.size <= 0) {
@@ -53,7 +53,7 @@ export function calculateAccountResources(
         if (quantity === 0) {
           positions.delete(movement.instrumentId);
         } else {
-          // Preserve negative holdings inherited from the supplied history.
+          // Conservamos tenencias negativas heredadas del historial
           positions.set(movement.instrumentId, quantity);
         }
         break;

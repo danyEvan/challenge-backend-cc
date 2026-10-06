@@ -2,11 +2,12 @@
 
 El punto de entrada es [AGENTS.md](../AGENTS.md).
 
-| Archivo                                                 | Responsabilidad                                        |
-| ------------------------------------------------------- | ------------------------------------------------------ |
-| [Contexto](context.md)                                  | Estado de implementación, pendientes y verificaciones. |
-| [Reglas de trading](rules/trading-architecture.md)      | Criterios para modificar código de negocio.            |
-| [Reglas de persistencia](rules/database-performance.md) | Criterios para consultas, transacciones y migraciones. |
+| Archivo                                                 | Responsabilidad                                                      |
+| ------------------------------------------------------- | -------------------------------------------------------------------- |
+| `context.md` (local, no versionado)                     | Estado de implementación, pendientes y verificaciones.               |
+| [Reglas de trading](rules/trading-architecture.md)      | Criterios para modificar código de negocio.                          |
+| [Reglas de persistencia](rules/database-performance.md) | Criterios para consultas, transacciones y migraciones.               |
+| [Reglas REST](rules/rest-api-standard.md)               | Rutas, métodos, contratos HTTP, respuestas, errores y documentación. |
 
 Las decisiones técnicas se explican en [docs](../docs/README.md). Este directorio conserva las instrucciones operativas y el estado del trabajo.
 

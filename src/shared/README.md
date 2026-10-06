@@ -9,6 +9,7 @@ Capacidades utilizadas por varios módulos. Sus límites se explican en [arquite
 | `domain/trading/`             | Vocabulario compartido y datos de cotizaciones.               |
 | `application/ports/`          | Contrato de lectura de usuarios, movimientos y precios.       |
 | `infrastructure/persistence/` | Conexión, entidades, adaptador TypeORM y `TradingReadModule`. |
+| `infrastructure/http/`        | Filtro compartido y DTO de Problem Details.                   |
 
 ## Dinero
 
@@ -37,14 +38,14 @@ cantidad = SUM(BUY.size) − SUM(SELL.size)
 
 ## Lecturas
 
-`TradingReader` consulta existencia de usuario, movimientos ejecutados y últimas cotizaciones.
+`TradingRepository` es el contrato abstracto para consultar existencia de usuario, movimientos ejecutados y últimas cotizaciones. Está en `application/ports/trading.repository.ts` y también funciona como token de inyección.
 
 Los movimientos se ordenan por `datetime ASC, id ASC`. Las cotizaciones se eligen por instrumento y `date DESC NULLS LAST, id DESC`, sin exigir la fecha actual. Un instrumento sin cotización queda ausente del resultado; el caso de uso decide cómo informar datos insuficientes.
 
 ## Integración transaccional
 
-`TypeOrmTradingReader` recibe un `EntityManager` en su constructor. La instancia de `TradingReadModule` utiliza el manager global y no abre transacciones.
+`TradingTypeOrmRepository`, en `infrastructure/persistence/trading-typeorm.repository.ts`, implementa ese contrato y recibe un `EntityManager` en su constructor. La instancia de `TradingReadModule` utiliza el manager global y no abre transacciones.
 
-Para órdenes, infraestructura deberá conectar el lector con el manager de la transacción después de bloquear al usuario. Portfolio deberá mantener un mismo snapshot para sus lecturas. El manager permanece dentro de infraestructura.
+Para órdenes, infraestructura deberá conectar el repositorio con el manager de la transacción después de bloquear al usuario. Portfolio deberá mantener un mismo snapshot para sus lecturas. El manager permanece dentro de infraestructura.
 
 Existen pruebas unitarias de dinero y recursos. La integración de las lecturas con PostgreSQL está pendiente.

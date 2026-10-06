@@ -17,6 +17,7 @@ export function databaseOptions(environment: Environment): DataSourceOptions {
     poolSize: 10,
     connectTimeoutMS: 5000,
     extra: { enableChannelBinding: true },
-    logging: ['error', 'warn'],
+    // TypeORM puede registrar SQL y parámetros ante errores, se trata de evitarlo
+    logging: ['warn'],
   };
 }

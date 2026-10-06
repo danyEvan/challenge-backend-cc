@@ -55,7 +55,7 @@ export function validateEnvironment(
     );
   }
 
-  // pg parses SSL options in the URL after the driver options. Keep one source.
+  // pg vuelve a interpretar el SSL de la URL. Usamos una sola fuente.
   if (url.searchParams.has('ssl') || url.searchParams.has('uselibpqcompat')) {
     throw new Error('DATABASE_URL must configure TLS using sslmode only');
   }
@@ -67,7 +67,7 @@ export function validateEnvironment(
       'DATABASE_URL sslmode must be disable, require or verify-full',
     );
   }
-  // Remote connections verify both the certificate and the host, including require.
+  // Las conexiones remotas verifican certificado y host, incluso con require.
   url.searchParams.set(
     'sslmode',
     sslMode === 'require' ? 'verify-full' : sslMode,

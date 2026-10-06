@@ -1,117 +1,117 @@
 # Cocos Capital · Backend Challenge
 
 <p align="center">
-  <img src="docs/pictures/cocos.jpg" alt="Logo de Cocos Capital" width="220" />
+  <img src="docs/pictures/cocos.jpg" alt="Cocos Capital" width="220" />
 </p>
 
-API REST de inversiones para buscar instrumentos, enviar órdenes y consultar el portfolio de un usuario. Desarrollada con Node.js, NestJS, TypeScript y PostgreSQL.
-
-**Estado:** en desarrollo. La infraestructura y los cálculos compartidos están implementados; los tres endpoints de negocio están pendientes.
+API REST de inversiones desarrollada con Node.js, NestJS, TypeScript y PostgreSQL.
 
 ## Alcance y estado
 
-| Funcionalidad            | Alcance                                                                 | Estado       |
-| ------------------------ | ----------------------------------------------------------------------- | ------------ |
-| Búsqueda de instrumentos | Coincidencias por ticker y/o nombre.                                    | Pendiente    |
-| Envío de órdenes         | BUY/SELL, MARKET/LIMIT, cantidad o monto en ARS y registro de rechazos. | Pendiente    |
-| Portfolio                | Efectivo disponible, valor total, posiciones y rendimiento.             | Pendiente    |
-| Health                   | Disponibilidad de la aplicación y su conexión a PostgreSQL.             | Implementado |
+| Funcionalidad       | Alcance                                                          | Estado       |
+| ------------------- | ---------------------------------------------------------------- | ------------ |
+| Buscar instrumentos | Coincidencias por ticker o nombre, con paginación.               | Implementado |
+| Enviar órdenes      | BUY/SELL, MARKET/LIMIT, cantidad o monto y rechazos persistidos. | Pendiente    |
+| Consultar portfolio | Efectivo, valor total, posiciones y rendimiento.                 | Pendiente    |
+| Health              | Disponibilidad de la API y PostgreSQL.                           | Implementado |
 
-La base actual incluye precisión monetaria con `decimal.js`, reconstrucción de recursos desde movimientos ejecutados, lecturas de cotizaciones y tests unitarios de dinero, recursos y health.
+También están implementados los cálculos compartidos de dinero, efectivo y tenencias. El test funcional de envío de órdenes está pendiente junto con ese endpoint.
 
-La entrega debe incluir ejecución local reproducible, test funcional de envío de órdenes y decisiones documentadas.
+## Ejecutar el proyecto
 
-## Stack
-
-| Área          | Herramientas                            |
-| ------------- | --------------------------------------- |
-| API           | NestJS y TypeScript estricto            |
-| Persistencia  | PostgreSQL, TypeORM y `pg`              |
-| Dinero        | `decimal.js`                            |
-| Validación    | `class-validator` y `class-transformer` |
-| Pruebas       | Vitest, Nest Testing y Supertest        |
-| Contrato HTTP | Swagger / OpenAPI                       |
-
-## Ejecución local
-
-### Requisitos
-
-- Node.js 24, la versión utilizada por el Dockerfile, y npm.
-- Docker con Compose para PostgreSQL local, o una instancia PostgreSQL accesible con los datos del challenge.
-
-### Preparación
-
-Desde la raíz del proyecto:
+Requisitos: Node.js 24 y npm. Desde la raíz del proyecto:
 
 ```bash
 npm ci
-cp .env.example .env
+test -f .env || cp .env.example .env
+```
+
+El comando conserva `.env` si ya existe. Elegir una de estas opciones para la base:
+
+- **Base de datos en la nube:** configurar `DATABASE_URL` en `.env` con la conexión a PostgreSQL y los datos del challenge ya cargados. No requiere Docker.
+- **Base de datos local:** usar los valores locales de `.env.example` y ejecutar el siguiente comando. Requiere Docker con Compose.
+
+```bash
 npm run db:up
 ```
 
-Configurar `DATABASE_URL` en `.env` para la base elegida. El archivo de ejemplo también incluye `PORT` y `NODE_ENV`.
+Compose carga [database.sql](database/database.sql) al crear el volumen por primera vez y conserva sus datos al detenerlo. Si `5432` está ocupado, ajustar `POSTGRES_PORT` y el puerto de `DATABASE_URL` en `.env` para que coincidan.
 
-Compose prepara PostgreSQL local y carga el seed al crear su volumen. Si se utiliza la base proporcionada, configurar su URL y omitir `db:up`: esa base ya tiene datos. La [guía de PostgreSQL](database/README.md) explica TLS, migraciones y la base de pruebas. El Dockerfile contiene la API.
-
-Las variables se validan al arrancar. Las conexiones remotas usan TLS por defecto, verificando el certificado; las migraciones se ejecutan mediante comandos explícitos.
-
-### Iniciar la API
+Con la base configurada, iniciar la API:
 
 ```bash
 npm run start:dev
 ```
 
-Con el puerto predeterminado:
+La API queda disponible en `http://localhost:3000`. Para ejecutar la versión compilada, usar `npm run build && npm run start:prod`.
 
-| Recurso | Dirección                                                        |
-| ------- | ---------------------------------------------------------------- |
-| Health  | [http://localhost:3000/health](http://localhost:3000/health)     |
-| Swagger | [http://localhost:3000/api/docs](http://localhost:3000/api/docs) |
+## Probar la API
 
-Swagger mostrará los endpoints de negocio a medida que se implementen.
+Las solicitudes están preparadas en [cocos-capital.http](docs/api/cocos-capital.http):
 
-Para ejecutar el código compilado:
+1. Instalar la extensión [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) en VS Code y abrir el archivo.
+2. Pulsar **Send Request** sobre `Application and database readiness - 200` para comprobar que la API y la base estén disponibles.
+3. Ejecutar `Search by ticker - 200`. Con los datos provistos, devuelve GGAL (id 34) en `data`.
+4. Recorrer los demás casos: búsqueda por nombre, paginación, exclusión de moneda y búsqueda sin coincidencias. `Invalid pagination - 400` comprueba un error intencional.
+
+El archivo define `baseUrl=http://localhost:3000`; ajustar ese valor si cambia el puerto de la API. No se requiere autenticación.
+
+Como alternativa desde el navegador, abrir [Swagger](http://localhost:3000/api/docs) y usar **Try it out** en `GET /instruments`. El [contrato HTTP](docs/api/README.md) detalla parámetros, respuestas y errores.
+
+La búsqueda acepta `search`, `limit` (20 por defecto) y `offset` (0 por defecto). Devuelve `{ data, meta }`; sin coincidencias responde `200` con `data: []`.
+
+## Ejecutar las verificaciones
 
 ```bash
-npm run build
-npm run start:prod
+# Formato, tipos, lint, pruebas unitarias y build; no requiere PostgreSQL.
+npm run verify
+
+# Verificación anterior más pruebas HTTP/e2e contra PostgreSQL aislado.
+npm run verify:all
 ```
 
-## Verificaciones
+`verify:all` requiere Docker con Compose e inicia una base aislada (`cocos_test`, puerto `5433`). Los e2e crean y eliminan fixtures allí; no usan `.env` ni la base proporcionada. Para detener los servicios locales conservando sus datos, ejecutar `npm run db:down`.
 
-| Acción                  | Comando                                                 | Base de datos |
-| ----------------------- | ------------------------------------------------------- | ------------- |
-| Tipos, incluyendo tests | `npx tsc --noEmit --incremental false -p tsconfig.json` | No            |
-| Lint                    | `npm run lint`                                          | No            |
-| Build                   | `npm run build`                                         | No            |
-| Tests unitarios         | `npm test`                                              | No            |
-| Tests HTTP/e2e          | `npm run test:e2e`                                      | Sí            |
+Las pruebas actuales cubren dinero, reconstrucción de recursos, health y búsqueda. El detalle de cobertura y sus límites están en el [contrato HTTP](docs/api/README.md#persistencia-y-verificaciones) y la [guía de dominio compartido](src/shared/README.md).
 
-Antes de ejecutar e2e, iniciar la base aislada con `npm run db:up:test`. Estas pruebas usan `cocos_test` en el puerto `5433`, sin leer `.env`; el e2e existente cubre health. El test funcional de órdenes está pendiente.
+## Diseño y decisiones
 
-## Organización
+Monolito modular con separación de HTTP, aplicación, dominio y persistencia:
 
-Monolito modular con separación liviana de dominio, aplicación e infraestructura.
-
-```text
-src/
-├── instruments/  # Búsqueda de activos
-├── orders/       # Creación y ejecución de órdenes
-├── portfolio/    # Valuación y rendimiento
-├── shared/       # Dinero, recursos y persistencia reutilizados
-└── health/       # Disponibilidad
+```mermaid
+flowchart LR
+    HTTP["Controller HTTP"] --> UseCase["Caso de uso"]
+    UseCase --> Port["Puerto de aplicación"]
+    Adapter["Adaptador TypeORM"] -. implementa .-> Port
+    Adapter --> Database[(PostgreSQL)]
+    UseCase --> Domain["Dominio financiero"]
 ```
 
-La [guía de arquitectura](docs/architecture.md) explica los límites entre módulos. Las decisiones financieras se documentan en [supuestos](docs/assumptions.md).
+- `instruments`: búsqueda del catálogo negociable.
+- `orders`: validación y persistencia de órdenes.
+- `portfolio`: reconstrucción, valuación y rendimiento.
+- `shared`: dinero, movimientos, cotizaciones, persistencia y errores HTTP reutilizados.
 
-## Documentación
+Los controllers y DTOs pertenecen a infraestructura; los casos de uso y el dominio no dependen de NestJS ni TypeORM. La [guía de arquitectura](docs/architecture.md) contiene el árbol completo, los límites entre módulos y la estrategia de consistencia.
 
-| Documento                                            | Contenido                                                        |
-| ---------------------------------------------------- | ---------------------------------------------------------------- |
-| [Índice técnico](docs/README.md)                     | Organización de la documentación y cuándo actualizarla.          |
-| [Arquitectura](docs/architecture.md)                 | Responsabilidades y estrategia de consistencia.                  |
-| [Supuestos funcionales](docs/assumptions.md)         | Criterios financieros, motivos y decisiones pendientes.          |
-| [Base de datos](database/README.md)                  | Preparación local, particularidades del seed y migraciones.      |
-| [Evidencias de performance](docs/evidence/README.md) | Comparaciones, capturas, consultas y procedimientos de medición. |
-| [Elementos compartidos](src/shared/README.md)        | Comportamiento de dinero, recursos y lecturas comunes.           |
-| [Guía para agentes](AGENTS.md)                       | Convenciones y contexto para continuar el desarrollo.            |
+| Decisión implementada                             | Motivo                                                          |
+| ------------------------------------------------- | --------------------------------------------------------------- |
+| Catálogo limitado a `ACCIONES`                    | `MONEDA` representa el efectivo de la cuenta.                   |
+| Búsqueda parametrizada y ordenada por ticker e id | Tratar el texto como dato y desempatar resultados paginados.    |
+| Cálculos compartidos con `decimal.js`             | Conservar precisión monetaria y redondear al presentar.         |
+| Recursos reconstruidos desde movimientos `FILLED` | Separar operaciones ejecutadas de pendientes y rechazos.        |
+| Errores HTTP con Problem Details                  | Mantener un formato común sin exponer detalles de persistencia. |
+
+Los criterios financieros y las decisiones pendientes de órdenes y portfolio están en [supuestos funcionales](docs/assumptions.md). La transacción con bloqueo por usuario sigue pendiente de implementación y pruebas con el endpoint de órdenes.
+
+## Documentación técnica
+
+| Documento                                            | Contenido                                  |
+| ---------------------------------------------------- | ------------------------------------------ |
+| [Contrato HTTP](docs/api/README.md)                  | Rutas, validaciones, respuestas y errores. |
+| [Supuestos funcionales](docs/assumptions.md)         | Decisiones financieras y pendientes.       |
+| [PostgreSQL](database/README.md)                     | Entorno local, esquema, TLS y migraciones. |
+| [Dominio compartido](src/shared/README.md)           | Dinero, recursos y cotizaciones.           |
+| [Evidencias de performance](docs/evidence/README.md) | Procedimiento y resultados de mediciones.  |
+
+Las variables se validan al iniciar y las migraciones se ejecutan mediante comandos explícitos. No hay mediciones de performance publicadas todavía.

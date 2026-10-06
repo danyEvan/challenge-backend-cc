@@ -3,6 +3,9 @@
 /node_modules
 /build
 
+# Local context
+/.agents/context.md
+
 # TypeScript build cache
 *.tsbuildinfo
 

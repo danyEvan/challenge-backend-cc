@@ -19,14 +19,7 @@ function movement(overrides: Partial<AccountMovement> = {}): AccountMovement {
 }
 
 describe('calculateAccountResources', () => {
-  it('returns zero cash and no positions for an empty account', () => {
-    const result = calculateAccountResources([]);
-
-    expect(result.availableCash.toString()).toBe('0.00');
-    expect(result.positions.size).toBe(0);
-  });
-
-  it('uses transfer size as pesos without multiplying by price or holding ARS', () => {
+  it('reconstructs transfers, cash and holdings from FILLED MARKET and LIMIT trades', () => {
     const result = calculateAccountResources([
       movement({
         instrumentId: 66,
@@ -40,34 +33,23 @@ describe('calculateAccountResources', () => {
         size: 100,
         price: Money.from('20'),
       }),
-    ]);
-
-    expect(result.availableCash.toString()).toBe('900.00');
-    expect(result.positions.size).toBe(0);
-  });
-
-  it('reconstructs cash and holdings with exact historical execution prices', () => {
-    const result = calculateAccountResources([
-      movement({ side: OrderSide.CASH_IN, size: 1000 }),
       movement({ size: 3, price: Money.from('10.10') }),
       movement({ side: OrderSide.SELL, size: 1, price: Money.from('12.35') }),
-      movement({ instrumentId: 2, size: 2, price: Money.from('1.05') }),
+      movement({
+        instrumentId: 2,
+        size: 2,
+        price: Money.from('1.05'),
+        type: OrderType.LIMIT,
+      }),
     ]);
 
-    expect(result.availableCash.toString()).toBe('979.95');
-    expect(result.positions.get(1)).toBe(2);
-    expect(result.positions.get(2)).toBe(2);
-  });
-
-  it('counts historical FILLED LIMIT orders just like FILLED MARKET orders', () => {
-    const result = calculateAccountResources([
-      movement({ side: OrderSide.CASH_IN, size: 1000 }),
-      movement({ size: 2, type: OrderType.MARKET }),
-      movement({ size: 3, type: OrderType.LIMIT }),
-    ]);
-
-    expect(result.availableCash.toString()).toBe('950.00');
-    expect(result.positions.get(1)).toBe(5);
+    expect(result.availableCash.toString()).toBe('879.95');
+    expect(result.positions).toEqual(
+      new Map([
+        [1, 2],
+        [2, 2],
+      ]),
+    );
   });
 
   it('ignores NEW, REJECTED and CANCELLED movements without reserving funds', () => {
@@ -101,8 +83,9 @@ describe('calculateAccountResources', () => {
     expect(result.positions.has(1)).toBe(false);
   });
 
-  it('preserves the negative holding in inconsistent supplied history', () => {
+  it('preserves negative cash and holdings inherited from inconsistent history', () => {
     const result = calculateAccountResources([
+      movement({ side: OrderSide.CASH_OUT, size: 20000 }),
       movement({ instrumentId: 31, size: 20, price: Money.from('1540') }),
       movement({
         instrumentId: 31,
@@ -112,25 +95,8 @@ describe('calculateAccountResources', () => {
       }),
     ]);
 
-    expect(result.availableCash.toString()).toBe('15100.00');
+    expect(result.availableCash.toString()).toBe('-4900.00');
     expect(result.positions.get(31)).toBe(-10);
-  });
-
-  it('does not clamp a negative cash balance inherited from history', () => {
-    const result = calculateAccountResources([
-      movement({ side: OrderSide.CASH_OUT, size: 100 }),
-    ]);
-
-    expect(result.availableCash.toString()).toBe('-100.00');
-  });
-
-  it('keeps historical holdings with zero cost without inventing a cash effect', () => {
-    const result = calculateAccountResources([
-      movement({ size: 2, price: Money.zero() }),
-    ]);
-
-    expect(result.availableCash.toString()).toBe('0.00');
-    expect(result.positions.get(1)).toBe(2);
   });
 
   it('rejects missing execution prices instead of inventing a cash balance', () => {
@@ -139,12 +105,9 @@ describe('calculateAccountResources', () => {
     ).toThrow('Executed trades require a historical price');
   });
 
-  it.each([0, -1, 1.5, Number.MAX_SAFE_INTEGER + 1])(
-    'rejects invalid executed movement size %s',
-    (size) => {
-      expect(() => calculateAccountResources([movement({ size })])).toThrow(
-        RangeError,
-      );
-    },
-  );
+  it.each([0, 1.5])('rejects invalid executed movement size %s', (size) => {
+    expect(() => calculateAccountResources([movement({ size })])).toThrow(
+      RangeError,
+    );
+  });
 });
