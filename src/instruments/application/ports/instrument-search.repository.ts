@@ -1,5 +1,5 @@
-import type { InstrumentSearchCriteria } from '../interfaces/instrument-search-criteria.js';
-import type { InstrumentSearchItem } from '../interfaces/instrument-search-item.js';
+import type { InstrumentSearchCriteria } from '#src/instruments/application/interfaces/instrument-search-criteria.js';
+import type { InstrumentSearchItem } from '#src/instruments/application/interfaces/instrument-search-item.js';
 
 export abstract class InstrumentSearchRepository {
   abstract search(

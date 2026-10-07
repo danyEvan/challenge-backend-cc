@@ -22,11 +22,12 @@ Completar los tres endpoints descritos en el [README](README.md), con ejecución
 - Crear abstracciones y dependencias cuando resuelvan una necesidad concreta.
 - Código y nombres en inglés; conservar los valores reales de PostgreSQL.
 - Comentarios cortos en español, solo para explicar motivos o restricciones que aporten.
-- TypeScript estricto, ESM y resolución `nodenext`; usar `.js` en imports relativos.
+- TypeScript estricto, ESM y resolución `nodenext`; usar `./` solo para archivos de la misma carpeta y `#src/*` para cualquier otra ruta interna, siempre con extensión `.js`. No usar imports ascendentes con `../`.
 - Usar npm y conservar `package-lock.json`. Los comandos están en el [README](README.md).
 - Mantener dominio y aplicación independientes de NestJS y TypeORM.
 - Usar las capacidades compartidas existentes cuando la responsabilidad corresponda a varios módulos.
 - Las pruebas deben comprobar comportamiento e invariantes financieros.
+- Ubicar todas las pruebas bajo `test/`: `unit/` para unidades aisladas, `feature/` para módulos con adaptadores simulados e `integration/` para recorridos con infraestructura real.
 
 ## Políticas del challenge
 

@@ -1,10 +1,10 @@
 import type { DataSource } from 'typeorm';
 import { In } from 'typeorm';
-import { calculateAccountResources } from '../../../shared/domain/account/calculate-account-resources.js';
-import { InstrumentEntity } from '../../../shared/infrastructure/persistence/entities/instrument.entity.js';
-import { TradingTypeOrmRepository } from '../../../shared/infrastructure/persistence/trading-typeorm.repository.js';
-import type { PortfolioSnapshot } from '../../application/interfaces/portfolio-snapshot.js';
-import { PortfolioRepository } from '../../application/ports/portfolio.repository.js';
+import { calculateAccountResources } from '#src/shared/domain/account/calculate-account-resources.js';
+import { InstrumentEntity } from '#src/shared/infrastructure/persistence/entities/instrument.entity.js';
+import { TradingTypeOrmRepository } from '#src/shared/infrastructure/persistence/trading-typeorm.repository.js';
+import type { PortfolioSnapshot } from '#src/portfolio/application/interfaces/portfolio-snapshot.js';
+import { PortfolioRepository } from '#src/portfolio/application/ports/portfolio.repository.js';
 
 export class PortfolioTypeOrmRepository extends PortfolioRepository {
   constructor(private readonly dataSource: DataSource) {

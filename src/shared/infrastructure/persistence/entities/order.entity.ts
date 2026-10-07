@@ -3,7 +3,7 @@ import type {
   OrderSide,
   OrderStatus,
   OrderType,
-} from '../../../domain/trading/trading.types.js';
+} from '#src/shared/domain/trading/trading.types.js';
 
 @Entity('orders')
 export class OrderEntity {

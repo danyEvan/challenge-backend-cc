@@ -8,10 +8,10 @@ import {
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
-import { SearchInstruments } from '../../../application/usecases/search-instruments.js';
-import { ProblemDetailsDto } from '../../../../shared/infrastructure/http/problem-details.dto.js';
-import { SearchInstrumentsQueryDto } from '../dto/search-instruments-query.dto.js';
-import { InstrumentSearchResponseDto } from '../dto/instrument-search-response.dto.js';
+import { SearchInstruments } from '#src/instruments/application/usecases/search-instruments.js';
+import { ProblemDetailsDto } from '#src/shared/infrastructure/http/problem-details.dto.js';
+import { SearchInstrumentsQueryDto } from '#src/instruments/infrastructure/http/dto/search-instruments-query.dto.js';
+import { InstrumentSearchResponseDto } from '#src/instruments/infrastructure/http/dto/instrument-search-response.dto.js';
 
 @ApiTags('Instruments')
 @ApiExtraModels(ProblemDetailsDto)

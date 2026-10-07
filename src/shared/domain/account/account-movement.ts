@@ -1,9 +1,9 @@
-import type { Money } from '../money/money.js';
+import type { Money } from '#src/shared/domain/money/money.js';
 import type {
   OrderSide,
   OrderStatus,
   OrderType,
-} from '../trading/trading.types.js';
+} from '#src/shared/domain/trading/trading.types.js';
 
 export type AccountMovement = Readonly<{
   id: number;

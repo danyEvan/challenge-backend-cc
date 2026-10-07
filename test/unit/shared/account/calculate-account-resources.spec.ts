@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { calculateAccountResources } from './calculate-account-resources.js';
-import { Money } from '../money/money.js';
-import type { AccountMovement } from './account-movement.js';
-import { OrderSide, OrderStatus, OrderType } from '../trading/trading.types.js';
-import { InvalidAccountHistoryError } from './errors/invalid-account-history.error.js';
+import { calculateAccountResources } from '#src/shared/domain/account/calculate-account-resources.js';
+import { Money } from '#src/shared/domain/money/money.js';
+import type { AccountMovement } from '#src/shared/domain/account/account-movement.js';
+import {
+  OrderSide,
+  OrderStatus,
+  OrderType,
+} from '#src/shared/domain/trading/trading.types.js';
+import { InvalidAccountHistoryError } from '#src/shared/domain/account/errors/invalid-account-history.error.js';
 
 function movement(overrides: Partial<AccountMovement> = {}): AccountMovement {
   return {

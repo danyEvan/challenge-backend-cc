@@ -1,7 +1,10 @@
-import { Money } from '../money/money.js';
+import { Money } from '#src/shared/domain/money/money.js';
 import type { AccountMovement } from './account-movement.js';
-import { OrderSide, OrderStatus } from '../trading/trading.types.js';
-import { InvalidAccountHistoryError } from './errors/invalid-account-history.error.js';
+import {
+  OrderSide,
+  OrderStatus,
+} from '#src/shared/domain/trading/trading.types.js';
+import { InvalidAccountHistoryError } from '#src/shared/domain/account/errors/invalid-account-history.error.js';
 
 export type AccountResources = Readonly<{
   availableCash: Money;

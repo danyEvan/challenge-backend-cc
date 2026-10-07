@@ -1,4 +1,4 @@
-import type { InstrumentType } from '../../../shared/domain/trading/trading.types.js';
+import type { InstrumentType } from '#src/shared/domain/trading/trading.types.js';
 
 export interface InstrumentSearchItem {
   readonly id: number;

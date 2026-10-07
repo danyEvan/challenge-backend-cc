@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Money } from './money.js';
+import { Money } from '#src/shared/domain/money/money.js';
 
 describe('Money', () => {
   it('adds decimals without binary floating point errors', () => {

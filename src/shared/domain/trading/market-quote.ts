@@ -1,4 +1,4 @@
-import type { Money } from '../money/money.js';
+import type { Money } from '#src/shared/domain/money/money.js';
 
 export type MarketQuote = Readonly<{
   instrumentId: number;

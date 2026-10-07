@@ -1,6 +1,6 @@
 import type { EntityManager } from 'typeorm';
-import { UserRepository } from '../../application/ports/user.repository.js';
-import { UserEntity } from './entities/user.entity.js';
+import { UserRepository } from '#src/shared/application/ports/user.repository.js';
+import { UserEntity } from '#src/shared/infrastructure/persistence/entities/user.entity.js';
 
 export class UserTypeOrmRepository extends UserRepository {
   constructor(private readonly manager: EntityManager) {

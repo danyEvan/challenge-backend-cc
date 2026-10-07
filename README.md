@@ -11,11 +11,11 @@ API REST de inversiones desarrollada con Node.js, NestJS, TypeScript y PostgreSQ
 | Funcionalidad       | Alcance                                                          | Estado       |
 | ------------------- | ---------------------------------------------------------------- | ------------ |
 | Buscar instrumentos | Coincidencias por ticker o nombre, con paginación.               | Implementado |
-| Enviar órdenes      | BUY/SELL, MARKET/LIMIT, cantidad o monto y rechazos persistidos. | Pendiente    |
+| Enviar órdenes      | BUY/SELL, MARKET/LIMIT, cantidad o monto y rechazos persistidos. | Implementado |
 | Consultar portfolio | Efectivo, valor total, posiciones y rendimiento.                 | Implementado |
 | Health              | Disponibilidad de la API y PostgreSQL.                           | Implementado |
 
-También están implementados los cálculos compartidos de dinero, efectivo y tenencias. El test funcional de envío de órdenes está pendiente junto con ese endpoint.
+También están implementados los cálculos compartidos de dinero, efectivo, tenencias y el test funcional de envío de órdenes.
 
 ## Ejecutar el proyecto
 
@@ -54,6 +54,7 @@ Las solicitudes están preparadas en [cocos-capital.http](docs/api/cocos-capital
 3. Ejecutar `Search by ticker - 200`. Con los datos provistos, devuelve GGAL (id 34) en `data`.
 4. Ejecutar `User portfolio - 200`: el usuario 1 tiene efectivo `753000.00` y valor total `889756.00`, incluyendo la posición heredada de BMA de −10 acciones.
 5. Recorrer los demás casos de búsqueda y portfolio, incluidas respuestas vacías y errores intencionales.
+6. Para probar órdenes, usar una base local descartable: las solicitudes `POST /orders` crean movimientos y cambian los portfolios posteriores.
 
 El archivo define `baseUrl=http://localhost:3000`; ajustar ese valor si cambia el puerto de la API. No se requiere autenticación.
 
@@ -66,6 +67,13 @@ La búsqueda acepta `search`, `limit` (20 por defecto) y `offset` (0 por defecto
 ## Ejecutar las verificaciones
 
 ```bash
+# Suites rápidas por responsabilidad.
+npm run test:unit
+npm run test:feature
+
+# Integración HTTP con PostgreSQL local aislado.
+npm run test:integration
+
 # Formato, tipos, lint, pruebas sin base de datos y build.
 npm run verify
 
@@ -73,9 +81,11 @@ npm run verify
 npm run verify:all
 ```
 
-`verify:all` requiere Docker con Compose e inicia una base aislada (`cocos_test`, puerto `5433`). Los e2e crean y eliminan fixtures allí; no usan `.env` ni la base proporcionada. Para detener los servicios locales conservando sus datos, ejecutar `npm run db:down`.
+Las pruebas están separadas en `test/unit`, `test/feature` y `test/integration`. `test:e2e` se conserva como alias de `test:integration`.
 
-Las pruebas cubren dinero, recursos, portfolio, health y búsqueda. Portfolio agrega cinco escenarios de cálculo y cinco HTTP con repositorio en memoria; no escribe fixtures ni requiere PostgreSQL. El detalle y los límites están en el [contrato HTTP](docs/api/README.md#persistencia-y-verificaciones).
+`test:integration` y `verify:all` requieren PostgreSQL local aislado. `verify:all` lo inicia con Docker Compose (`cocos_test`, puerto `5433`). Los e2e crean y eliminan fixtures allí; no usan `.env` ni la base proporcionada. Para detener los servicios locales conservando sus datos, ejecutar `npm run db:down`.
+
+Las pruebas sin base cubren dinero, recursos, dominio y contrato HTTP de órdenes, portfolio, health y búsqueda. `verify:all` agrega pruebas funcionales de búsqueda y órdenes contra PostgreSQL aislado, incluida la persistencia de un rechazo concurrente. El detalle y los límites están en el [contrato HTTP](docs/api/README.md#persistencia-y-verificaciones).
 
 ## Diseño y decisiones
 
@@ -105,8 +115,9 @@ Los controllers y DTOs pertenecen a infraestructura; los casos de uso y el domin
 | Recursos reconstruidos desde movimientos `FILLED` | Separar operaciones ejecutadas de pendientes y rechazos.        |
 | Errores HTTP con Problem Details                  | Mantener un formato común sin exponer detalles de persistencia. |
 | Portfolio con snapshot de solo lectura            | Evitar mezclar movimientos y cotizaciones de distintos estados. |
+| Órdenes atómicas con bloqueo por usuario          | Evitar que solicitudes simultáneas consuman el mismo recurso.   |
 
-Los criterios financieros y las decisiones pendientes de órdenes están en [supuestos funcionales](docs/assumptions.md). La transacción con bloqueo por usuario sigue pendiente con el endpoint de órdenes.
+Los criterios financieros y las decisiones de órdenes están en [supuestos funcionales](docs/assumptions.md). La transacción usa el mismo manager para bloquear la cuenta, reconstruir recursos y persistir el resultado.
 
 ## Documentación técnica
 

@@ -1,40 +1,61 @@
 import type { Decimal } from 'decimal.js';
-import type { AccountMovement } from '../../shared/domain/account/account-movement.js';
-import { calculateAccountResources } from '../../shared/domain/account/calculate-account-resources.js';
-import { InvalidAccountHistoryError } from '../../shared/domain/account/errors/invalid-account-history.error.js';
-import { Money } from '../../shared/domain/money/money.js';
-import type { MarketQuote } from '../../shared/domain/trading/market-quote.js';
+import type { AccountMovement } from '#src/shared/domain/account/account-movement.js';
+import { calculateAccountResources } from '#src/shared/domain/account/calculate-account-resources.js';
+import { InvalidAccountHistoryError } from '#src/shared/domain/account/errors/invalid-account-history.error.js';
+import { Money } from '#src/shared/domain/money/money.js';
+import type { MarketQuote } from '#src/shared/domain/trading/market-quote.js';
 import {
   OrderSide,
   OrderStatus,
-} from '../../shared/domain/trading/trading.types.js';
-import { PortfolioDataUnavailableError } from './errors/portfolio-data-unavailable.error.js';
+} from '#src/shared/domain/trading/trading.types.js';
+import { PortfolioDataUnavailableError } from '#src/portfolio/domain/errors/portfolio-data-unavailable.error.js';
 import type { ValuedPosition } from './valued-position.js';
+
+type PositionCostState = Readonly<{
+  quantity: number;
+  costBasis: Money | null;
+}>;
+
+type ValuableQuote = MarketQuote & {
+  readonly close: Money;
+  readonly date: string;
+};
 
 export function calculatePortfolio(
   movements: readonly AccountMovement[],
   quotes: ReadonlyMap<number, MarketQuote>,
 ): { availableCash: Money; totalValue: Money; positions: ValuedPosition[] } {
-  const resources = calculateAccountResources(movements);
+  const accountResources = calculateAccountResources(movements);
   const positionCosts = calculatePositionCosts(movements);
-  const positions: ValuedPosition[] = [];
-  let totalValue = resources.availableCash;
+  const positions = valueOpenPositions(
+    accountResources.positions,
+    positionCosts,
+    quotes,
+  );
+  const totalValue = positions.reduce(
+    (currentTotal, position) => currentTotal.add(position.marketValue),
+    accountResources.availableCash,
+  );
 
-  for (const [instrumentId, quantity] of resources.positions) {
-    const quote = quotes.get(instrumentId);
-    if (
-      !quote ||
-      quote.close === null ||
-      quote.close.isNegative() ||
-      quote.date === null
-    ) {
-      throw new PortfolioDataUnavailableError();
-    }
+  return {
+    availableCash: accountResources.availableCash,
+    totalValue,
+    positions,
+  };
+}
+
+function valueOpenPositions(
+  quantities: ReadonlyMap<number, number>,
+  positionCosts: ReadonlyMap<number, PositionCostState>,
+  quotes: ReadonlyMap<number, MarketQuote>,
+): ValuedPosition[] {
+  return [...quantities].map(([instrumentId, quantity]) => {
+    const quote = requireValuableQuote(instrumentId, quotes);
 
     const marketValue = quote.close.multiply(quantity);
     const costBasis = positionCosts.get(instrumentId)?.costBasis ?? null;
-    totalValue = totalValue.add(marketValue);
-    positions.push({
+
+    return {
       instrumentId,
       quantity,
       marketPrice: quote.close,
@@ -46,17 +67,58 @@ export function calculatePortfolio(
         quote.previousClose,
       ),
       quoteDate: quote.date,
-    });
-  }
-
-  return { availableCash: resources.availableCash, totalValue, positions };
+    };
+  });
 }
 
-function calculatePositionCosts(movements: readonly AccountMovement[]) {
-  const positionCosts = new Map<
-    number,
-    { quantity: number; costBasis: Money | null }
-  >();
+function requireValuableQuote(
+  instrumentId: number,
+  quotes: ReadonlyMap<number, MarketQuote>,
+): ValuableQuote {
+  const quote = quotes.get(instrumentId);
+  if (!isValuableQuote(quote)) {
+    throw new PortfolioDataUnavailableError();
+  }
+
+  return quote;
+}
+
+function isValuableQuote(
+  quote: MarketQuote | undefined,
+): quote is ValuableQuote {
+  return (
+    quote !== undefined &&
+    quote.close !== null &&
+    !quote.close.isNegative() &&
+    quote.date !== null
+  );
+}
+
+function calculatePositionCosts(
+  movements: readonly AccountMovement[],
+): ReadonlyMap<number, PositionCostState> {
+  const positionCosts = new Map<number, PositionCostState>();
+  const executedMovements = getChronologicalExecutedMovements(movements);
+
+  for (const movement of executedMovements) {
+    if (movement.side !== OrderSide.BUY && movement.side !== OrderSide.SELL) {
+      continue;
+    }
+
+    const currentState = positionCosts.get(movement.instrumentId) ?? {
+      quantity: 0,
+      costBasis: Money.zero(),
+    };
+    const nextState = applyTradeToPositionCost(currentState, movement);
+    positionCosts.set(movement.instrumentId, nextState);
+  }
+
+  return positionCosts;
+}
+
+function getChronologicalExecutedMovements(
+  movements: readonly AccountMovement[],
+): AccountMovement[] {
   const executedMovements = movements.filter(
     (movement) => movement.status === OrderStatus.FILLED,
   );
@@ -72,41 +134,41 @@ function calculatePositionCosts(movements: readonly AccountMovement[]) {
     (a, b) => a.datetime.getTime() - b.datetime.getTime() || a.id - b.id,
   );
 
-  for (const movement of executedMovements) {
-    if (movement.side !== OrderSide.BUY && movement.side !== OrderSide.SELL) {
-      continue;
-    }
+  return executedMovements;
+}
 
-    const state = positionCosts.get(movement.instrumentId) ?? {
-      quantity: 0,
-      costBasis: Money.zero(),
-    };
-    const isBuy = movement.side === OrderSide.BUY;
-    if (!isBuy && movement.size > state.quantity) {
-      // Una sobreventa no permite reconstruir un costo long válido.
-      state.costBasis = null;
-    } else if (state.costBasis !== null && movement.price !== null) {
-      if (isBuy) {
-        const purchaseCost = movement.price.multiply(movement.size);
-        state.costBasis = state.costBasis.add(purchaseCost);
-      } else {
-        const remainingQuantity = state.quantity - movement.size;
-        const remainingCost = state.costBasis
-          .toDecimal()
-          .times(remainingQuantity)
-          .div(state.quantity);
-        state.costBasis = Money.from(remainingCost);
-      }
-    }
+function applyTradeToPositionCost(
+  currentState: PositionCostState,
+  movement: AccountMovement,
+): PositionCostState {
+  const isBuy = movement.side === OrderSide.BUY;
+  const quantityChange = isBuy ? movement.size : -movement.size;
+  const nextQuantity = currentState.quantity + quantityChange;
 
-    state.quantity += isBuy ? movement.size : -movement.size;
-    if (state.quantity === 0 && state.costBasis !== null) {
-      state.costBasis = Money.zero();
-    }
-    positionCosts.set(movement.instrumentId, state);
+  if (!isBuy && movement.size > currentState.quantity) {
+    // Una sobreventa no permite reconstruir un costo long válido.
+    return { quantity: nextQuantity, costBasis: null };
   }
 
-  return positionCosts;
+  let nextCostBasis = currentState.costBasis;
+  if (nextCostBasis !== null && movement.price !== null) {
+    if (isBuy) {
+      const purchaseCost = movement.price.multiply(movement.size);
+      nextCostBasis = nextCostBasis.add(purchaseCost);
+    } else {
+      const remainingCost = nextCostBasis
+        .toDecimal()
+        .times(nextQuantity)
+        .div(currentState.quantity);
+      nextCostBasis = Money.from(remainingCost);
+    }
+  }
+
+  if (nextQuantity === 0 && nextCostBasis !== null) {
+    nextCostBasis = Money.zero();
+  }
+
+  return { quantity: nextQuantity, costBasis: nextCostBasis };
 }
 
 function calculatePercentageChange(

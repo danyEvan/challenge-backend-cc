@@ -1,0 +1,3 @@
+export const MAX_ORDER_SIZE = 2147483647;
+export const MAX_ORDER_MONEY = '99999999.99';
+export const ORDER_MONEY_DECIMAL_PLACES = 2;

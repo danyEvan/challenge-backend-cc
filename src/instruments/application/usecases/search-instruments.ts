@@ -1,6 +1,6 @@
-import { InstrumentSearchRepository } from '../ports/instrument-search.repository.js';
-import type { InstrumentSearchCriteria } from '../interfaces/instrument-search-criteria.js';
-import type { InstrumentSearchPage } from '../interfaces/instrument-search-page.js';
+import { InstrumentSearchRepository } from '#src/instruments/application/ports/instrument-search.repository.js';
+import type { InstrumentSearchCriteria } from '#src/instruments/application/interfaces/instrument-search-criteria.js';
+import type { InstrumentSearchPage } from '#src/instruments/application/interfaces/instrument-search-page.js';
 
 export class SearchInstruments {
   constructor(private readonly repository: InstrumentSearchRepository) {}

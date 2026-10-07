@@ -1,6 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { InstrumentType } from '../../../../shared/domain/trading/trading.types.js';
-import type { InstrumentSearchItem } from '../../../application/interfaces/instrument-search-item.js';
+import { InstrumentType } from '#src/shared/domain/trading/trading.types.js';
+import type { InstrumentSearchItem } from '#src/instruments/application/interfaces/instrument-search-item.js';
 
 export class InstrumentDto implements InstrumentSearchItem {
   @ApiProperty({ type: 'integer', example: 34 })

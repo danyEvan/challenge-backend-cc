@@ -1,5 +1,5 @@
 import type { Decimal } from 'decimal.js';
-import type { Money } from '../../shared/domain/money/money.js';
+import type { Money } from '#src/shared/domain/money/money.js';
 
 export type ValuedPosition = Readonly<{
   instrumentId: number;

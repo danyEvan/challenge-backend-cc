@@ -110,9 +110,69 @@ Ejemplo de validación de `limit=101`:
 }
 ```
 
-`instance` identifica el path, sin query string. Los errores conocidos de portfolio publican un detalle seguro y registran su código; los fallos inesperados conservan el detalle y log genéricos, sin información de PostgreSQL. Health conserva su respuesta propia, incluido su `503`.
+`instance` identifica el path, sin query string. Los errores conocidos publican un detalle seguro y los fallos inesperados conservan detalle y log genéricos, sin información de PostgreSQL. Health mantiene su respuesta propia, incluido su `503`.
 
-El contrato de órdenes sigue pendiente. Una orden financiera `REJECTED` tendrá su respuesta de negocio, según los [supuestos](../assumptions.md).
+## Enviar órdenes
+
+`POST /orders`
+
+Permite enviar una orden de compra o venta (`BUY` o `SELL`), ya sea por cantidad de acciones exacta o por monto a invertir en ARS (mutuamente excluyentes). Soporta órdenes `MARKET` y `LIMIT`.
+
+### Cuerpo de la solicitud
+
+| Campo          | Tipo           | Obligatorio / Regla                                                                                                    |
+| -------------- | -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `userId`       | Entero         | Sí (entero positivo).                                                                                                  |
+| `instrumentId` | Entero         | Sí (entero positivo).                                                                                                  |
+| `side`         | String         | Sí (`BUY` o `SELL`).                                                                                                   |
+| `type`         | String         | Sí (`MARKET` o `LIMIT`).                                                                                               |
+| `size`         | Entero         | Opcional, entre 1 y 2147483647. Mutuamente excluyente con `amount`.                                                    |
+| `amount`       | String decimal | Opcional, positivo, máximo `99999999.99` y hasta dos decimales. Mutuamente excluyente con `size`.                      |
+| `price`        | String decimal | Obligatorio para `LIMIT`, positivo, máximo `99999999.99` y hasta dos decimales. Prohibido en órdenes de tipo `MARKET`. |
+
+### Conversión de monto y reglas financieras
+
+- Cuando se envía `amount`, la cantidad de acciones se calcula como `floor(monto / precio aplicable)`.
+- Si el resultado de la conversión es cero acciones, la solicitud se considera inválida, responde `422 Unprocessable Entity` con Problem Details y **no se persiste**.
+- Para órdenes `MARKET`, el precio aplicable es el último valor `close` disponible del instrumento en `marketdata`.
+- Para órdenes `LIMIT`, el precio aplicable es el `price` límite provisto.
+- **Validación de disponibilidad**:
+  - `BUY`: se valida que el usuario posea efectivo suficiente (`availableCash >= precio × cantidad`).
+  - `SELL`: se valida que el usuario posea tenencia suficiente de ese instrumento (`positions[instrumentId] >= cantidad`).
+- Si los recursos son insuficientes, la orden se considera rechazada por el mercado, **se persiste** con estado `REJECTED` y devuelve `201 Created` informando el rechazo como auditoría operativa.
+- Si los recursos son suficientes:
+  - Una orden `MARKET` se ejecuta inmediatamente y se persiste con estado `FILLED`.
+  - Una orden `LIMIT` se persiste con estado `NEW`. No reserva recursos a futuro bajo los supuestos actuales.
+
+### Respuesta exitosa (`201 Created`)
+
+```json
+{
+  "data": {
+    "id": 105,
+    "userId": 1,
+    "instrumentId": 47,
+    "side": "BUY",
+    "type": "MARKET",
+    "size": 5,
+    "price": "925.85",
+    "status": "FILLED",
+    "datetime": "2023-07-14T15:30:00.000Z"
+  }
+}
+```
+
+### Errores y códigos Problem Details
+
+| Situación                                    | Estado | Código                    |
+| -------------------------------------------- | ------ | ------------------------- |
+| Parámetros inválidos o exclusión size/amount | `400`  | `INVALID_REQUEST`         |
+| Usuario no encontrado                        | `404`  | `NOT_FOUND`               |
+| Instrumento no encontrado                    | `404`  | `NOT_FOUND`               |
+| Instrumento existente no negociable          | `422`  | `INSTRUMENT_NOT_TRADABLE` |
+| Orden resulta en 0 acciones o inválida       | `422`  | `INVALID_ORDER`           |
+| Cotización ausente para orden MARKET         | `500`  | `MARKET_DATA_UNAVAILABLE` |
+| Fallo técnico inesperado                     | `500`  | `INTERNAL_ERROR`          |
 
 ## Persistencia y verificaciones
 
@@ -122,6 +182,8 @@ Las pruebas HTTP usan PostgreSQL local aislado: comprueban búsqueda por ambos c
 
 No se midió performance ni se agregaron índices de búsqueda. La decisión de postergar `pg_trgm` se explica en [supuestos y decisiones](../assumptions.md#búsqueda-e-índices).
 
-Portfolio tiene cinco tests de cálculo y cinco HTTP sin PostgreSQL: promedio móvil y precisión, cierre/reapertura, sobreventa, precio ausente, contrato completo del seed y warning, cuenta vacía/inexistente, validación y errores controlados/sanitizados. Su adaptador usa `REPEATABLE READ` y `READ ONLY`, con el mismo manager y lecturas por lote; no hay consultas por posición. Las pruebas automatizadas no verifican concurrencia real con PostgreSQL.
+Portfolio tiene cinco tests de cálculo y cinco HTTP sin PostgreSQL: promedio móvil y precisión, cierre/reapertura, sobreventa, precio ausente, contrato completo del seed y warning, cuenta vacía/inexistente, validación y errores controlados/sanitizados. Su adaptador usa `REPEATABLE READ` y `READ ONLY`, con el mismo manager y lecturas por lote; no hay consultas por posición.
+
+Órdenes tiene pruebas del dominio y del contrato HTTP sin PostgreSQL. El test funcional aislado crea sus propios usuarios, instrumentos, cotización y transferencias: comprueba una MARKET persistida, dos compras simultáneas sobre el mismo saldo —una `FILLED` y otra `REJECTED`— y el rechazo sin persistencia de un instrumento `MONEDA`. Los fixtures se eliminan al terminar.
 
 La API compilada se comprobó contra la base proporcionada, únicamente con GET: usuario 1 (`200`, total `889756.00`), usuario 2 vacío (`200`), usuario inexistente (`404`) e ID inválido (`400`, sin consultar la base). Se revisaron Swagger y las sentencias de la transacción: cuatro SELECT para la cuenta con posiciones, dos para la vacía y uno para el usuario inexistente. No se modificaron datos ni se midió performance. Esa comprobación fue anterior a mover la consulta de existencia al caso de uso; ahora se hace antes del snapshot financiero, sin sumar SELECT, y el refactor se verifica con mocks, no contra PostgreSQL.

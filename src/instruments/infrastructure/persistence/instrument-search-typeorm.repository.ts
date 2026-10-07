@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { InstrumentSearchRepository } from '../../application/ports/instrument-search.repository.js';
-import type { InstrumentSearchCriteria } from '../../application/interfaces/instrument-search-criteria.js';
-import type { InstrumentSearchItem } from '../../application/interfaces/instrument-search-item.js';
-import { InstrumentType } from '../../../shared/domain/trading/trading.types.js';
-import { InstrumentEntity } from '../../../shared/infrastructure/persistence/entities/instrument.entity.js';
+import { InstrumentSearchRepository } from '#src/instruments/application/ports/instrument-search.repository.js';
+import type { InstrumentSearchCriteria } from '#src/instruments/application/interfaces/instrument-search-criteria.js';
+import type { InstrumentSearchItem } from '#src/instruments/application/interfaces/instrument-search-item.js';
+import { InstrumentType } from '#src/shared/domain/trading/trading.types.js';
+import { InstrumentEntity } from '#src/shared/infrastructure/persistence/entities/instrument.entity.js';
 
 @Injectable()
 export class InstrumentSearchTypeOrmRepository extends InstrumentSearchRepository {

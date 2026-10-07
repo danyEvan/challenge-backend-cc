@@ -1,10 +1,10 @@
 import { Catch } from '@nestjs/common';
 import type { ArgumentsHost } from '@nestjs/common';
-import { InvalidAccountHistoryError } from '../../../../shared/domain/account/errors/invalid-account-history.error.js';
-import { ApiProblemException } from '../../../../shared/infrastructure/http/api-problem.exception.js';
-import { ProblemDetailsFilter } from '../../../../shared/infrastructure/http/problem-details.filter.js';
-import { PortfolioDataUnavailableError } from '../../../domain/errors/portfolio-data-unavailable.error.js';
-import { UserNotFoundError } from '../../../domain/errors/user-not-found.error.js';
+import { InvalidAccountHistoryError } from '#src/shared/domain/account/errors/invalid-account-history.error.js';
+import { ApiProblemException } from '#src/shared/infrastructure/http/api-problem.exception.js';
+import { ProblemDetailsFilter } from '#src/shared/infrastructure/http/problem-details.filter.js';
+import { PortfolioDataUnavailableError } from '#src/portfolio/domain/errors/portfolio-data-unavailable.error.js';
+import { UserNotFoundError } from '#src/portfolio/domain/errors/user-not-found.error.js';
 
 @Catch(
   UserNotFoundError,

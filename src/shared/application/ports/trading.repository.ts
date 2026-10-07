@@ -1,5 +1,5 @@
-import type { AccountMovement } from '../../domain/account/account-movement.js';
-import type { MarketQuote } from '../../domain/trading/market-quote.js';
+import type { AccountMovement } from '#src/shared/domain/account/account-movement.js';
+import type { MarketQuote } from '#src/shared/domain/trading/market-quote.js';
 
 export abstract class TradingRepository {
   abstract findExecutedMovements(userId: number): Promise<AccountMovement[]>;

@@ -5,11 +5,11 @@ import { DataSource, In } from 'typeorm';
 import type { Repository } from 'typeorm';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { AppModule } from '../src/app.module.js';
-import { setupApplication } from '../src/app.setup.js';
-import { InstrumentEntity } from '../src/shared/infrastructure/persistence/entities/instrument.entity.js';
-import { InstrumentType } from '../src/shared/domain/trading/trading.types.js';
-import { InstrumentSearchRepository } from '../src/instruments/application/ports/instrument-search.repository.js';
+import { AppModule } from '#src/app.module.js';
+import { setupApplication } from '#src/app.setup.js';
+import { InstrumentEntity } from '#src/shared/infrastructure/persistence/entities/instrument.entity.js';
+import { InstrumentType } from '#src/shared/domain/trading/trading.types.js';
+import { InstrumentSearchRepository } from '#src/instruments/application/ports/instrument-search.repository.js';
 
 describe('Instrument search (HTTP and PostgreSQL)', () => {
   let app: INestApplication<App>;

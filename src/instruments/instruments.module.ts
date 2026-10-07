@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { InstrumentEntity } from '../shared/infrastructure/persistence/entities/instrument.entity.js';
-import { InstrumentSearchRepository } from './application/ports/instrument-search.repository.js';
-import { SearchInstruments } from './application/usecases/search-instruments.js';
-import { InstrumentSearchTypeOrmRepository } from './infrastructure/persistence/instrument-search-typeorm.repository.js';
-import { InstrumentsController } from './infrastructure/http/controllers/instruments.controller.js';
+import { InstrumentEntity } from '#src/shared/infrastructure/persistence/entities/instrument.entity.js';
+import { InstrumentSearchRepository } from '#src/instruments/application/ports/instrument-search.repository.js';
+import { SearchInstruments } from '#src/instruments/application/usecases/search-instruments.js';
+import { InstrumentSearchTypeOrmRepository } from '#src/instruments/infrastructure/persistence/instrument-search-typeorm.repository.js';
+import { InstrumentsController } from '#src/instruments/infrastructure/http/controllers/instruments.controller.js';
 
 @Module({
   imports: [TypeOrmModule.forFeature([InstrumentEntity])],

@@ -1,12 +1,12 @@
 import type { EntityManager } from 'typeorm';
-import { TradingRepository } from '../../application/ports/trading.repository.js';
-import { Money } from '../../domain/money/money.js';
-import type { AccountMovement } from '../../domain/account/account-movement.js';
-import type { MarketQuote } from '../../domain/trading/market-quote.js';
-import { OrderStatus } from '../../domain/trading/trading.types.js';
-import { InvalidAccountHistoryError } from '../../domain/account/errors/invalid-account-history.error.js';
-import { MarketDataEntity } from './entities/market-data.entity.js';
-import { OrderEntity } from './entities/order.entity.js';
+import { TradingRepository } from '#src/shared/application/ports/trading.repository.js';
+import { Money } from '#src/shared/domain/money/money.js';
+import type { AccountMovement } from '#src/shared/domain/account/account-movement.js';
+import type { MarketQuote } from '#src/shared/domain/trading/market-quote.js';
+import { OrderStatus } from '#src/shared/domain/trading/trading.types.js';
+import { InvalidAccountHistoryError } from '#src/shared/domain/account/errors/invalid-account-history.error.js';
+import { MarketDataEntity } from '#src/shared/infrastructure/persistence/entities/market-data.entity.js';
+import { OrderEntity } from '#src/shared/infrastructure/persistence/entities/order.entity.js';
 
 export class TradingTypeOrmRepository extends TradingRepository {
   // El consumidor decide el alcance transaccional del manager.

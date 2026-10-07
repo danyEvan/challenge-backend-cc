@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type { PortfolioPosition } from '../../../application/interfaces/portfolio-position.js';
+import type { PortfolioPosition } from '#src/portfolio/application/interfaces/portfolio-position.js';
 
 export class PortfolioPositionDto implements PortfolioPosition {
   @ApiProperty({ type: 'integer', example: 47 })

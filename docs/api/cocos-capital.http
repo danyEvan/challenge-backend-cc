@@ -1,5 +1,7 @@
 @baseUrl = http://localhost:3000
 
+# Las solicitudes POST crean órdenes. Ejecutarlas únicamente sobre una base local descartable.
+
 ### Application and database readiness - 200
 # Ejecutar primero. Con API y PostgreSQL disponibles responde 200.
 GET {{baseUrl}}/health
@@ -64,3 +66,90 @@ Accept: application/json, application/problem+json
 # El identificador debe ser entero positivo.
 GET {{baseUrl}}/users/0/portfolio
 Accept: application/json, application/problem+json
+
+### Submit MARKET BUY order by amount - 201
+# Calcula cantidad con floor(monto / close); con efectivo suficiente queda FILLED.
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Accept: application/json, application/problem+json
+
+{
+  "userId": 1,
+  "instrumentId": 47,
+  "side": "BUY",
+  "type": "MARKET",
+  "amount": "50000.00"
+}
+
+### Submit MARKET SELL order by size - 201
+# Vende 10 acciones de PAMP; con tenencia suficiente queda FILLED.
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Accept: application/json, application/problem+json
+
+{
+  "userId": 1,
+  "instrumentId": 47,
+  "side": "SELL",
+  "type": "MARKET",
+  "size": 10
+}
+
+### Submit LIMIT BUY order by size - 201
+# Requiere precio positivo; si no excede efectivo actual queda NEW.
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Accept: application/json, application/problem+json
+
+{
+  "userId": 1,
+  "instrumentId": 31,
+  "side": "BUY",
+  "type": "LIMIT",
+  "size": 5,
+  "price": "1400.50"
+}
+
+### Submit order with insufficient cash - 201 REJECTED
+# Si los fondos no alcanzan, la orden se persiste como REJECTED.
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Accept: application/json, application/problem+json
+
+{
+  "userId": 2,
+  "instrumentId": 47,
+  "side": "BUY",
+  "type": "LIMIT",
+  "size": 1000,
+  "price": "1000.00"
+}
+
+### Invalid order amount (0 shares calculated) - 422
+# Monto inferior al precio de una acción produce error de procesamiento 422 y no se guarda.
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Accept: application/json, application/problem+json
+
+{
+  "userId": 1,
+  "instrumentId": 47,
+  "side": "BUY",
+  "type": "MARKET",
+  "amount": "100.00"
+}
+
+### Invalid order parameters (both size and amount) - 400
+# Caso de error intencional: se exige exactamente uno entre size y amount.
+POST {{baseUrl}}/orders
+Content-Type: application/json
+Accept: application/json, application/problem+json
+
+{
+  "userId": 1,
+  "instrumentId": 47,
+  "side": "BUY",
+  "type": "MARKET",
+  "size": 10,
+  "amount": "5000.00"
+}

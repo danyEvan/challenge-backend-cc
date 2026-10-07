@@ -57,15 +57,17 @@ src/<feature>/
   <feature>.module.ts         # conexión de providers, puertos y controllers
 ```
 
-El controller recibe y devuelve DTOs HTTP; el caso de uso trabaja con contratos sin decoradores ni dependencias del framework. Los puertos pertenecen a aplicación porque expresan qué necesita el caso de uso; el módulo Nest conecta cada puerto con su adaptador. `domain/` se reserva para reglas, entidades y valores propios del negocio: una feature sin lógica de dominio puede no usarlo. Las entidades TypeORM compartidas permanecen en `shared/infrastructure/persistence/entities/`. Crear subcarpetas opcionales solo cuando contengan código; cada contrato, DTO, caso de uso y adaptador tiene su propio archivo. Las pruebas unitarias se ubican junto al código y las HTTP/e2e en `test/`.
+El controller recibe y devuelve DTOs HTTP; el caso de uso trabaja con contratos sin decoradores ni dependencias del framework. Los puertos pertenecen a aplicación porque expresan qué necesita el caso de uso; el módulo Nest conecta cada puerto con su adaptador. `domain/` se reserva para reglas, entidades y valores propios del negocio: una feature sin lógica de dominio puede no usarlo. Las entidades TypeORM compartidas permanecen en `shared/infrastructure/persistence/entities/`. Crear subcarpetas opcionales solo cuando contengan código; cada contrato, DTO, caso de uso y adaptador tiene su propio archivo.
+
+Todas las pruebas viven bajo `test/`: `unit/` contiene funciones o clases aisladas, `feature/` levanta módulos Nest con puertos simulados e `integration/` recorre HTTP e infraestructura real. Los imports internos usan `#src/*`; TypeScript y Vitest lo resuelven hacia `src`, mientras que el mapa nativo de `package.json` lo dirige a `dist` al ejecutar el build. Los imports locales dentro de una misma carpeta conservan `./`.
 
 Los contratos de persistencia usan una clase abstracta `<Nombre>Repository` en `application/ports/<nombre>.repository.ts`, sin dependencias de NestJS ni TypeORM. Su implementación se llama `<Nombre>TypeOrmRepository` y vive en `infrastructure/persistence/<nombre>-typeorm.repository.ts`. El módulo Nest registra el contrato con `provide` y la implementación con `useClass` o `useFactory`. La clase abstracta sirve como tipo y como token de inyección; no requiere un token adicional. Cada contrato declara únicamente las operaciones necesarias para sus consumidores, sin agregar un repositorio genérico ni métodos CRUD sin uso.
 
-El dominio compartido implementa dinero y reconstrucción de recursos. `portfolio/domain/` agrega promedio ponderado móvil, valuación y rendimiento; `orders` todavía está pendiente. `instruments` es una consulta sin reglas de dominio propias. Su adaptador incluye únicamente `ACCIONES`; las transferencias de `MONEDA` aportan efectivo.
+El dominio compartido implementa dinero y reconstrucción de recursos. `portfolio/domain/` agrega promedio ponderado móvil, valuación y rendimiento. `orders/domain/` implementa `evaluateOrder`, que calcula el precio aplicable, valida límites, convierte montos a acciones enteras y determina disponibilidad de fondos o tenencias para asignar el estado (`FILLED`, `NEW` o `REJECTED`). `instruments` es una consulta sin reglas de dominio propias. Su adaptador incluye únicamente `ACCIONES`; las transferencias de `MONEDA` aportan efectivo.
 
 El cálculo de portfolio separa la reconstrucción cronológica del costo y la valuación con cotizaciones. Rendimiento y variación diaria reutilizan la misma fórmula porcentual, con bases distintas; los helpers permanecen privados al cálculo, sin agregar capas.
 
-Las excepciones de negocio extienden `Error`, sin dependencias HTTP. `InvalidAccountHistoryError` es compartida; portfolio define usuario inexistente y datos de valuación insuficientes. Un filtro propio de portfolio las traduce mediante `ApiProblemException` y reutiliza el filtro compartido para publicar únicamente detalles seguros. Los fallos inesperados permanecen sanitizados. El futuro rechazo financiero de una orden se persistirá como `REJECTED`, separado de un fallo técnico.
+Las excepciones de negocio extienden `Error`, sin dependencias HTTP. `InvalidAccountHistoryError` es compartida; portfolio y orders definen sus propias excepciones (`UserNotFoundError`, `InvalidOrderError`, `MarketDataUnavailableError`). Filtros propios de cada feature las traducen mediante `ApiProblemException` y reutilizan el filtro compartido para publicar únicamente detalles seguros. Los fallos inesperados permanecen sanitizados. El rechazo financiero de una orden se persiste como `REJECTED` (respondiendo `201`), separado de un error de solicitud o fallo técnico.
 
 ## Límites entre módulos
 
@@ -84,15 +86,13 @@ Las cuatro entidades TypeORM mapean una base utilizada por varias funcionalidade
 
 ## Consistencia y concurrencia
 
-La estrategia elegida para órdenes es una transacción con bloqueo de la fila del usuario antes de validar disponibilidad. Las lecturas y la escritura usarán el mismo manager; el rechazo financiero también se confirmará.
+La estrategia para órdenes es una transacción `READ COMMITTED` con bloqueo pesimista de la fila del usuario (`pessimistic_write` / `FOR UPDATE`) antes de validar disponibilidad. El lock serializa las órdenes de una cuenta y cada lectura posterior incorpora el último commit, incluida una orden que hubiera esperado el mismo bloqueo. Las lecturas de instrumento, cotización y movimientos ejecutados, la evaluación de dominio y la escritura usan el mismo `EntityManager`. Si los recursos son insuficientes, el rechazo financiero se confirma como `REJECTED`.
 
-El bloqueo por usuario permitirá que cuentas distintas avancen independientemente. Portfolio ya usa una transacción `REPEATABLE READ`, con `SET TRANSACTION READ ONLY` antes de leer. `PortfolioTypeOrmRepository` crea el lector compartido con ese mismo manager: movimientos, instrumentos y cotizaciones pertenecen al mismo snapshot. Las dos últimas lecturas se hacen en lote y se omiten si no hay posiciones abiertas.
+El bloqueo por usuario serializa las operaciones de una misma cuenta, impidiendo sobregiros o doble gasto concurrente, al tiempo que permite que cuentas distintas avancen independientemente sin bloquearse entre sí. Portfolio usa su propia transacción `REPEATABLE READ`, con `SET TRANSACTION READ ONLY` antes de leer.
 
-`GetPortfolio` consulta existencia mediante `UserRepository` y decide si lanzar `UserNotFoundError` antes de solicitar el snapshot. Esa consulta previa queda fuera de la transacción financiera: no garantiza atomicidad ante una eliminación concurrente del usuario. El challenge no incorpora un flujo de eliminación de usuarios.
+`GetPortfolio` consulta existencia mediante `UserRepository` y decide si lanzar `UserNotFoundError` antes de solicitar el snapshot. En `orders`, la existencia se valida de forma atómica dentro de la transacción al intentar adquirir el bloqueo de la fila del usuario en `users`.
 
-El puerto `PortfolioRepository` entrega siempre un snapshot, incluso vacío, sin validar existencia ni filtrar entidades ORM hacia aplicación. `GetPortfolio` delega el cálculo al dominio y presenta strings decimales. El controller agrega `data` y registra posiciones negativas; la ruta pertenece a portfolio aunque consuma una lectura de usuarios.
-
-La concurrencia de órdenes y las pruebas automatizadas de aislamiento con PostgreSQL siguen pendientes. La [guía de shared](../src/shared/README.md) explica la conexión al manager transaccional.
+El caso de uso `SubmitOrder` no depende de TypeORM ni expone managers. Delega la operación atómica al puerto específico `OrderRepository` y presenta el resultado persistido como strings decimales y fecha ISO. `OrderTypeOrmRepository` ejecuta la transacción y llama a la función pura `evaluateOrder` después de obtener el estado bloqueado de la cuenta. El controller transforma el DTO en `SubmitOrderInput` y devuelve `{ data }` mediante `OrderResponseDto`.
 
 ## Performance
 

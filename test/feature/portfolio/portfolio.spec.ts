@@ -14,18 +14,18 @@ import type { INestApplication } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import type { App } from 'supertest/types.js';
-import { setupApplication } from '../src/app.setup.js';
-import { PortfolioRepository } from '../src/portfolio/application/ports/portfolio.repository.js';
-import type { PortfolioSnapshot } from '../src/portfolio/application/interfaces/portfolio-snapshot.js';
-import { PortfolioModule } from '../src/portfolio/portfolio.module.js';
-import { Money } from '../src/shared/domain/money/money.js';
-import { UserRepository } from '../src/shared/application/ports/user.repository.js';
-import type { AccountMovement } from '../src/shared/domain/account/account-movement.js';
+import { setupApplication } from '#src/app.setup.js';
+import { PortfolioRepository } from '#src/portfolio/application/ports/portfolio.repository.js';
+import type { PortfolioSnapshot } from '#src/portfolio/application/interfaces/portfolio-snapshot.js';
+import { PortfolioModule } from '#src/portfolio/portfolio.module.js';
+import { Money } from '#src/shared/domain/money/money.js';
+import { UserRepository } from '#src/shared/application/ports/user.repository.js';
+import type { AccountMovement } from '#src/shared/domain/account/account-movement.js';
 import {
   OrderSide,
   OrderStatus,
   OrderType,
-} from '../src/shared/domain/trading/trading.types.js';
+} from '#src/shared/domain/trading/trading.types.js';
 
 function movement(
   id: number,

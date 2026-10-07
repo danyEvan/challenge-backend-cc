@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { validateEnvironment } from '../../../config/environment.js';
+import { validateEnvironment } from '#src/config/environment.js';
 import { databaseOptions } from './database.options.js';
 
 @Module({

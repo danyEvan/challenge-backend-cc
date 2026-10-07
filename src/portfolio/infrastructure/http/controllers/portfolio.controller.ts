@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Controller,
   Get,
   Inject,
@@ -19,11 +18,12 @@ import {
   ApiTags,
   getSchemaPath,
 } from '@nestjs/swagger';
-import { ProblemDetailsDto } from '../../../../shared/infrastructure/http/problem-details.dto.js';
-import { GetPortfolio } from '../../../application/usecases/get-portfolio.js';
-import { PortfolioParamsDto } from '../dto/portfolio-params.dto.js';
-import { PortfolioResponseDto } from '../dto/portfolio-response.dto.js';
-import { PortfolioExceptionFilter } from '../filters/portfolio-exception.filter.js';
+import { ProblemDetailsDto } from '#src/shared/infrastructure/http/problem-details.dto.js';
+import { GetPortfolio } from '#src/portfolio/application/usecases/get-portfolio.js';
+import { PortfolioParamsDto } from '#src/portfolio/infrastructure/http/dto/portfolio-params.dto.js';
+import { PortfolioQueryDto } from '#src/portfolio/infrastructure/http/dto/portfolio-query.dto.js';
+import { PortfolioResponseDto } from '#src/portfolio/infrastructure/http/dto/portfolio-response.dto.js';
+import { PortfolioExceptionFilter } from '#src/portfolio/infrastructure/http/filters/portfolio-exception.filter.js';
 
 const problemContent = {
   'application/problem+json': {
@@ -67,12 +67,8 @@ export class PortfolioController {
   })
   async get(
     @Param() params: PortfolioParamsDto,
-    @Query() query: Record<string, unknown>,
+    @Query() _query: PortfolioQueryDto,
   ): Promise<PortfolioResponseDto> {
-    if (Object.keys(query).length !== 0) {
-      throw new BadRequestException('Query parameters are not supported.');
-    }
-
     const data = await this.getPortfolio.execute(params.userId);
 
     for (const position of data.positions) {

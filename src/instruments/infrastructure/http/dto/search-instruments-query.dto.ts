@@ -8,8 +8,8 @@ import {
   NotContains,
 } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import type { InstrumentSearchCriteria } from '../../../application/interfaces/instrument-search-criteria.js';
-import { parseQueryInteger } from '../transforms/parse-query-integer.js';
+import type { InstrumentSearchCriteria } from '#src/instruments/application/interfaces/instrument-search-criteria.js';
+import { parseQueryInteger } from '#src/instruments/infrastructure/http/transforms/parse-query-integer.js';
 
 export class SearchInstrumentsQueryDto implements InstrumentSearchCriteria {
   @ApiPropertyOptional({

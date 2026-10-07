@@ -1,10 +1,10 @@
 import type { Decimal } from 'decimal.js';
-import type { UserRepository } from '../../../shared/application/ports/user.repository.js';
-import { calculatePortfolio } from '../../domain/calculate-portfolio.js';
-import { PortfolioDataUnavailableError } from '../../domain/errors/portfolio-data-unavailable.error.js';
-import { UserNotFoundError } from '../../domain/errors/user-not-found.error.js';
-import type { PortfolioResult } from '../interfaces/portfolio-result.js';
-import type { PortfolioRepository } from '../ports/portfolio.repository.js';
+import type { UserRepository } from '#src/shared/application/ports/user.repository.js';
+import { calculatePortfolio } from '#src/portfolio/domain/calculate-portfolio.js';
+import { PortfolioDataUnavailableError } from '#src/portfolio/domain/errors/portfolio-data-unavailable.error.js';
+import { UserNotFoundError } from '#src/portfolio/domain/errors/user-not-found.error.js';
+import type { PortfolioResult } from '#src/portfolio/application/interfaces/portfolio-result.js';
+import type { PortfolioRepository } from '#src/portfolio/application/ports/portfolio.repository.js';
 
 function formatPercentage(value: Decimal | null): string | null {
   if (value === null) {

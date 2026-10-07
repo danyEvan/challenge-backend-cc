@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type { PortfolioResult } from '../../../application/interfaces/portfolio-result.js';
+import type { PortfolioResult } from '#src/portfolio/application/interfaces/portfolio-result.js';
 import { PortfolioPositionDto } from './portfolio-position.dto.js';
 
 export class PortfolioDto implements PortfolioResult {

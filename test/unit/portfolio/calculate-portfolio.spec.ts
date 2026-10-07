@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { AccountMovement } from '../../shared/domain/account/account-movement.js';
-import { Money } from '../../shared/domain/money/money.js';
-import type { MarketQuote } from '../../shared/domain/trading/market-quote.js';
+import type { AccountMovement } from '#src/shared/domain/account/account-movement.js';
+import { Money } from '#src/shared/domain/money/money.js';
+import type { MarketQuote } from '#src/shared/domain/trading/market-quote.js';
 import {
   OrderSide,
   OrderStatus,
   OrderType,
-} from '../../shared/domain/trading/trading.types.js';
-import { calculatePortfolio } from './calculate-portfolio.js';
-import { PortfolioDataUnavailableError } from './errors/portfolio-data-unavailable.error.js';
+} from '#src/shared/domain/trading/trading.types.js';
+import { calculatePortfolio } from '#src/portfolio/domain/calculate-portfolio.js';
+import { PortfolioDataUnavailableError } from '#src/portfolio/domain/errors/portfolio-data-unavailable.error.js';
 
 function movement(
   id: number,

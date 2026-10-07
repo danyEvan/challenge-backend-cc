@@ -1,10 +1,10 @@
 import { fileURLToPath } from 'node:url';
 import type { DataSourceOptions } from 'typeorm';
-import type { Environment } from '../../../config/environment.js';
-import { InstrumentEntity } from './entities/instrument.entity.js';
-import { MarketDataEntity } from './entities/market-data.entity.js';
-import { OrderEntity } from './entities/order.entity.js';
-import { UserEntity } from './entities/user.entity.js';
+import type { Environment } from '#src/config/environment.js';
+import { InstrumentEntity } from '#src/shared/infrastructure/persistence/entities/instrument.entity.js';
+import { MarketDataEntity } from '#src/shared/infrastructure/persistence/entities/market-data.entity.js';
+import { OrderEntity } from '#src/shared/infrastructure/persistence/entities/order.entity.js';
+import { UserEntity } from '#src/shared/infrastructure/persistence/entities/user.entity.js';
 
 export function databaseOptions(environment: Environment): DataSourceOptions {
   return {

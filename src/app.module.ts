@@ -1,11 +1,11 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { validateEnvironment } from './config/environment.js';
-import { DatabaseModule } from './shared/infrastructure/persistence/database.module.js';
-import { HealthModule } from './health/health.module.js';
-import { InstrumentsModule } from './instruments/instruments.module.js';
-import { OrdersModule } from './orders/orders.module.js';
-import { PortfolioModule } from './portfolio/portfolio.module.js';
+import { validateEnvironment } from '#src/config/environment.js';
+import { DatabaseModule } from '#src/shared/infrastructure/persistence/database.module.js';
+import { HealthModule } from '#src/health/health.module.js';
+import { InstrumentsModule } from '#src/instruments/instruments.module.js';
+import { OrdersModule } from '#src/orders/orders.module.js';
+import { PortfolioModule } from '#src/portfolio/portfolio.module.js';
 
 @Module({
   imports: [

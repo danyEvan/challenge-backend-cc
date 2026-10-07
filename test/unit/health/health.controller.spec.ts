@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { HttpStatus } from '@nestjs/common';
 import type { DataSource } from 'typeorm';
 import type { Response } from 'express';
-import { HealthController } from './health.controller.js';
+import { HealthController } from '#src/health/health.controller.js';
 
 describe('HealthController', () => {
   let controller: HealthController;

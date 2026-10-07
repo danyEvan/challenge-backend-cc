@@ -1,5 +1,5 @@
 import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
-import type { InstrumentType } from '../../../domain/trading/trading.types.js';
+import type { InstrumentType } from '#src/shared/domain/trading/trading.types.js';
 
 @Entity('instruments')
 export class InstrumentEntity {

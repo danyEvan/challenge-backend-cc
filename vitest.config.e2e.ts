@@ -1,5 +1,4 @@
 import { defineConfig } from 'vitest/config';
-import tsconfigPaths from 'vite-tsconfig-paths';
 
 const databaseUrl =
   process.env.TEST_DATABASE_URL ??
@@ -24,11 +23,11 @@ if (
 }
 
 export default defineConfig({
-  plugins: [tsconfigPaths()],
+  resolve: { tsconfigPaths: true },
   test: {
     globals: true,
     root: './',
-    include: ['**/*.e2e-spec.ts'],
+    include: ['test/integration/**/*.e2e-spec.ts'],
     env: { NODE_ENV: 'test', DATABASE_URL: databaseUrl },
   },
 });

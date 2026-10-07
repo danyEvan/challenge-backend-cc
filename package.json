@@ -6,6 +6,9 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
+  "imports": {
+    "#src/*": "./dist/*"
+  },
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -22,10 +25,13 @@
     "lint": "oxlint --type-aware src/ test/",
     "typecheck": "tsc --noEmit --incremental false -p tsconfig.json",
     "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:feature": "vitest run test/feature",
+    "test:integration": "vitest run --config ./vitest.config.e2e.ts",
     "test:watch": "vitest",
     "test:cov": "vitest run --coverage",
     "test:debug": "vitest --inspect-brk --no-file-parallelism",
-    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "test:e2e": "npm run test:integration",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "verify": "npm run format:check && npm run typecheck && npm run lint && npm test && npm run build",
     "verify:all": "npm run verify && npm run db:up:test && npm run test:e2e"
@@ -59,7 +65,6 @@
     "source-map-support": "^0.5.21",
     "supertest": "^7.0.0",
     "typescript": "^6.0.2",
-    "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.1.2"
   }
 }
