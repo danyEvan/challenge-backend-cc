@@ -41,16 +41,19 @@ Si aumenta el volumen o aparecen demoras, se revisará el plan con `EXPLAIN (ANA
 | Valor total           | Efectivo más la suma de cantidad por último `close` de cada posición.                                                                                                                                 |
 | Costo de posición     | Promedio ponderado móvil: compras incorporan costo; ventas parciales lo reducen al promedio vigente; una posición válida cerrada reinicia el costo. Recorrer por `datetime`, con `id` como desempate. |
 | Rendimiento           | `(valor actual − costo restante) / costo restante × 100`. Describe la posición abierta; no incluye la ganancia realizada de ventas previas.                                                           |
-| Costo inválido        | Informar rendimiento `null` si el costo es cero, inválido o no puede reconstruirse. No inventar un porcentaje para una posición negativa sin costo válido.                                            |
+| Costo inválido        | Una sobreventa invalida costo y rendimiento (`null`), incluso si compras posteriores vuelven a dejar cantidad positiva. Un costo conocido de cero se informa como `"0.00"`, con rendimiento `null`.   |
 | Datos insuficientes   | Informar explícitamente la falta de cotización o de datos necesarios. No reemplazarlos por cero ni presentar una valuación incompleta como total válido.                                              |
 
-El rendimiento diario calculado con `previousClose` es otro indicador. Su inclusión está pendiente de definir. Costo, rendimiento y endpoint de portfolio todavía no están implementados.
+Portfolio está implementado en `GET /users/:userId/portfolio`, sin paginación y solo en ARS. Incluye `dailyPriceChangePercentage` para distinguir la variación diaria del precio del rendimiento sobre el costo. Si `previousClose` falta o no es positivo, ese indicador es `null`. Importes y porcentajes son strings de dos decimales, redondeados solo al presentar.
+
+Los datos provistos contienen una venta ejecutada de BMA superior a la compra previa (usuario 1: −10 acciones). Se conserva el dato, su valor con signo y un warning interno, sin cambios de esquema, correcciones ni campos de anomalías en la respuesta. No se supone que sea una venta en corto autorizada. El futuro endpoint de órdenes deberá persistir `REJECTED` ante una venta que exceda la tenencia, como exige el challenge.
+
+Un usuario inexistente produce `404`; uno existente sin movimientos, un portfolio vacío. Un historial ejecutado inválido produce `500 INVALID_ACCOUNT_HISTORY`. La ausencia de datos necesarios para valuar posiciones abiertas produce `500 PORTFOLIO_DATA_UNAVAILABLE`: no es un error de la solicitud ni se devuelve un total incompleto.
 
 ## Alcance y decisiones pendientes
 
 - Los tres endpoints no requieren autenticación ni simulación del mercado. Cancelación e idempotencia son ampliaciones opcionales.
-- Búsqueda, paginación y errores HTTP compartidos definidos en el [contrato implementado](api/README.md). Definir campos, importes y errores de negocio de órdenes y portfolio al implementar sus flujos.
+- Búsqueda, portfolio y errores HTTP definidos en el [contrato implementado](api/README.md). Definir el contrato de órdenes al implementar ese flujo.
 - Resolver el precio enviado en una MARKET y el monto inferior al precio de una acción.
-- Definir la respuesta HTTP para historial inválido y cotizaciones ausentes, conservando los criterios anteriores.
 
 La [arquitectura](architecture.md) describe los límites entre módulos y la estrategia de consistencia. La [guía de PostgreSQL](../database/README.md) documenta las particularidades del dataset.

@@ -44,3 +44,23 @@ Accept: application/json, application/problem+json
 # Caso de error intencional: 400, limit mayor que 100.
 GET {{baseUrl}}/instruments?limit=101
 Accept: application/json, application/problem+json
+
+### User portfolio - 200
+# Seed: efectivo 753000.00, total 889756.00; BMA conserva -10 acciones.
+GET {{baseUrl}}/users/1/portfolio
+Accept: application/json, application/problem+json
+
+### Empty portfolio - 200
+# Seed: usuario existente sin movimientos; importes 0.00 y positions=[].
+GET {{baseUrl}}/users/2/portfolio
+Accept: application/json, application/problem+json
+
+### Missing portfolio user - 404
+# Con el seed provisto el usuario no existe.
+GET {{baseUrl}}/users/2147483647/portfolio
+Accept: application/json, application/problem+json
+
+### Invalid portfolio user - 400
+# El identificador debe ser entero positivo.
+GET {{baseUrl}}/users/0/portfolio
+Accept: application/json, application/problem+json

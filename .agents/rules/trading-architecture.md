@@ -1,22 +1,21 @@
 ---
 trigger: model_decision
-description: 'Aplicar al implementar o revisar endpoints, reglas financieras y límites entre módulos.'
+description: 'Aplicar al implementar o revisar casos de uso, reglas financieras y límites entre módulos.'
 ---
 
-# Código de negocio
+# Arquitectura y código de negocio
 
-Antes de modificar un flujo, leer [arquitectura](../../docs/architecture.md), [supuestos funcionales](../../docs/assumptions.md) y el comportamiento de los [elementos compartidos](../../src/shared/README.md).
+Respetar la arquitectura y las políticas explícitas del proyecto. Estos criterios no requieren un framework, ORM ni árbol de carpetas particular.
 
-- Implementar los contratos en su feature, con DTOs HTTP en infraestructura.
-- Seguir la [estructura de cada feature](../../docs/architecture.md#estructura-de-cada-feature): entradas, resultados y proyecciones de casos de uso en `application/interfaces/`; puertos en `application/ports/`; casos de uso en `application/usecases/`; controllers en `infrastructure/http/controllers/`; DTOs en `infrastructure/http/dto/`; y adaptadores de base en `infrastructure/persistence/`. Ubicar transformaciones HTTP reutilizables en `infrastructure/http/transforms/` cuando existan. Dar a cada contrato o clase con responsabilidad propia su archivo.
-- Crear elementos en `domain/` únicamente cuando representen reglas, entidades o valores reales del negocio. No inventar clases de dominio para proyecciones de lectura sin comportamiento.
-- Mantener cálculos de dominio independientes de NestJS y TypeORM.
-- Reutilizar dinero, reconstrucción de recursos y lecturas comunes.
-- Agregar elementos a `shared` cuando tengan consumidores concretos en distintos módulos.
-- Mantener modelos de dominio independientes de los mapeos TypeORM.
-- Ubicar excepciones de negocio concretas en `domain/errors/` de su feature (o del dominio compartido cuando corresponda), independientes de NestJS y HTTP. Definirlas junto al flujo que las produce y su traducción HTTP; distinguirlas de entradas HTTP inválidas y de resultados financieros `REJECTED` persistidos. No agregar excepciones para una búsqueda sin coincidencias.
-- Usar clases abstractas o tokens explícitos para inyectar puertos; los tipos de TypeScript se eliminan en runtime.
-- Para persistencia, usar contratos abstractos `<Nombre>Repository` en `application/ports/<nombre>.repository.ts` e implementaciones `<Nombre>TypeOrmRepository` en `infrastructure/persistence/<nombre>-typeorm.repository.ts`. La clase abstracta es el token de inyección; conectar ambos en el módulo Nest. Declarar solo operaciones requeridas por los consumidores, sin crear repositorios genéricos ni CRUD sin uso.
-- Preservar precisión y validar los límites de entrada antes de persistir.
-- Cubrir en las pruebas el resultado financiero y el registro persistido.
-- Al modificar una política, actualizar su guía y los casos afectados. Registrar los pendientes en `.agents/context.md` local, si existe.
+- Organizar el código por responsabilidades: dominio para reglas, aplicación para casos de uso e infraestructura para HTTP, persistencia y conexión de dependencias.
+- Mantener dominio y aplicación independientes de frameworks y ORM. No filtrar entidades de persistencia ni decoradores HTTP hacia ellos.
+- Crear elementos de dominio únicamente cuando representen reglas, entidades o valores reales del negocio; no inventarlos para una proyección de lectura sin comportamiento.
+- Definir entradas, resultados y puertos junto al consumidor; implementar los adaptadores en infraestructura. Seguir los nombres y carpetas acordados para el proyecto.
+- Declarar en los puertos solo operaciones necesarias. No crear repositorios genéricos ni CRUD sin consumidores reales.
+- Usar mecanismos de inyección disponibles en runtime cuando el lenguaje borre interfaces o tipos al compilar.
+- Compartir capacidades cuando varios consumidores representen la misma regla; conservar contratos específicos cuando tengan responsabilidades diferentes.
+- Mantener errores de negocio independientes de HTTP y traducirlos en infraestructura. Distinguir entrada inválida, resultado financiero rechazado y fallo técnico; una consulta sin coincidencias no es una excepción por sí misma.
+- En cálculos financieros, reutilizar la interpretación común de dinero y recursos, conservar precisión y validar límites antes de persistir.
+- No ocultar datos inválidos ni corregir historial financiero como efecto secundario de una lectura. Seguir la política de conciliación y presentación acordada.
+- Comprobar resultados e invariantes del negocio con pruebas relevantes; incluir el registro persistido cuando el flujo escriba datos.
+- Al cambiar una política, actualizar los contratos, ejemplos y documentación afectados. Separar lo implementado de lo verificado y lo pendiente.

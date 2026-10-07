@@ -12,6 +12,6 @@ export type AccountMovement = Readonly<{
   price: Money | null;
   side: OrderSide;
   status: OrderStatus;
-  type: OrderType;
+  type: OrderType | null;
   datetime: Date;
 }>;

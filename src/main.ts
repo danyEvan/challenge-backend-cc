@@ -13,11 +13,12 @@ async function bootstrap() {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('Cocos Capital - Investment API')
     .setDescription(
-      'Search market instruments by ticker or name. Health and instrument search are available; orders and portfolio are under development.',
+      'Search market instruments and retrieve account portfolios. Order submission is under development.',
     )
     .setVersion('1.0.0')
     .addTag('Health', 'Application and database readiness')
     .addTag('Instruments', 'Search market assets by ticker or name')
+    .addTag('Portfolio', 'Account cash, positions and valuation')
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);

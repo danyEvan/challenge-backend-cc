@@ -10,27 +10,27 @@ export class OrderEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: 'instrumentid', type: 'int' })
-  instrumentId!: number;
+  @Column({ name: 'instrumentid', type: 'int', nullable: true })
+  instrumentId!: number | null;
 
-  @Column({ name: 'userid', type: 'int' })
-  userId!: number;
+  @Column({ name: 'userid', type: 'int', nullable: true })
+  userId!: number | null;
 
-  @Column({ type: 'int' })
-  size!: number;
+  @Column({ type: 'int', nullable: true })
+  size!: number | null;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2 })
-  price!: string;
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  price!: string | null;
 
-  @Column({ type: 'varchar', length: 10 })
-  type!: OrderType;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  type!: OrderType | null;
 
-  @Column({ type: 'varchar', length: 10 })
-  side!: OrderSide;
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  side!: OrderSide | null;
 
-  @Column({ type: 'varchar', length: 20 })
-  status!: OrderStatus;
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  status!: OrderStatus | null;
 
-  @Column({ type: 'timestamp' })
-  datetime!: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  datetime!: Date | null;
 }

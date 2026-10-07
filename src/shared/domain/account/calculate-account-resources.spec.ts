@@ -3,6 +3,7 @@ import { calculateAccountResources } from './calculate-account-resources.js';
 import { Money } from '../money/money.js';
 import type { AccountMovement } from './account-movement.js';
 import { OrderSide, OrderStatus, OrderType } from '../trading/trading.types.js';
+import { InvalidAccountHistoryError } from './errors/invalid-account-history.error.js';
 
 function movement(overrides: Partial<AccountMovement> = {}): AccountMovement {
   return {
@@ -107,7 +108,7 @@ describe('calculateAccountResources', () => {
 
   it.each([0, 1.5])('rejects invalid executed movement size %s', (size) => {
     expect(() => calculateAccountResources([movement({ size })])).toThrow(
-      RangeError,
+      InvalidAccountHistoryError,
     );
   });
 });

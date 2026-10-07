@@ -3,6 +3,7 @@ import type { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { STATUS_CODES } from 'node:http';
 import type { Request, Response } from 'express';
 import type { ProblemDetailsDto } from './problem-details.dto.js';
+import { ApiProblemException } from './api-problem.exception.js';
 
 @Catch()
 export class ProblemDetailsFilter implements ExceptionFilter {
@@ -23,7 +24,13 @@ export class ProblemDetailsFilter implements ExceptionFilter {
       code: 'INTERNAL_ERROR',
     };
 
-    if (exception instanceof HttpException && status < 500) {
+    if (exception instanceof ApiProblemException) {
+      body.code = exception.code;
+      body.detail = exception.message;
+      if (status >= 500) {
+        this.logger.error(`HTTP request failed: ${exception.code}`);
+      }
+    } else if (exception instanceof HttpException && status < 500) {
       const payload = exception.getResponse();
       const message: unknown =
         typeof payload === 'string'

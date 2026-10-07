@@ -6,7 +6,7 @@ PostgreSQL contiene usuarios, instrumentos, movimientos y precios de mercado. El
 
 La API lee `DATABASE_URL` desde el entorno o `.env`. El [archivo de ejemplo](../.env.example) contiene valores locales y un formato para completar la conexión remota.
 
-La base hosteada proporcionada ya contiene datos. La equivalencia de su esquema con el script local todavía está pendiente de verificar. La configuración de TypeORM mantiene `synchronize: false`.
+La base proporcionada ya contiene datos. Se inspeccionaron mediante consultas de solo lectura sus columnas, nulabilidad, claves e índices: coinciden con el esquema funcional del SQL provisto. La configuración mantiene `synchronize: false`; no se aplicaron migraciones ni se corrigieron datos.
 
 | Variable       | Valor o validación                                     |
 | -------------- | ------------------------------------------------------ |
@@ -54,15 +54,15 @@ El script requiere una base vacía: crea tablas e inserta datos, y no admite eje
 
 ## Particularidades del esquema y el seed
 
-| Tema                | Consideración                                                                                                                                                                                              |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nombres físicos     | PostgreSQL crea `userid`, `instrumentid`, `accountnumber` y `previousclose` en minúsculas.                                                                                                                 |
-| Fecha de mercado    | La columna de cotizaciones es `marketdata.date`.                                                                                                                                                           |
-| Precios             | `NUMERIC(10,2)` se mantiene como string en las entidades y se convierte a `Money` para calcular.                                                                                                           |
-| Nulabilidad         | El SQL permite `NULL` en las columnas distintas de la clave primaria. `InstrumentEntity` y `UserEntity` están alineadas; `OrderEntity` y `MarketDataEntity` siguen pendientes de completar esa alineación. |
-| Cotizaciones        | Los datos corresponden al 13 y 14 de julio de 2023. Seleccionar el último registro disponible por instrumento.                                                                                             |
-| Historial ejecutado | Hay una orden LIMIT histórica `FILLED`; debe contar al reconstruir recursos.                                                                                                                               |
-| Tenencia negativa   | Usuario 1, instrumento 31 (BMA): compra de 20 y venta de 30 ejecutadas, con saldo de −10 acciones. Conservar y documentar la anomalía.                                                                     |
+| Tema                | Consideración                                                                                                                                                                          |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nombres físicos     | PostgreSQL crea `userid`, `instrumentid`, `accountnumber` y `previousclose` en minúsculas.                                                                                             |
+| Fecha de mercado    | La columna de cotizaciones es `marketdata.date`.                                                                                                                                       |
+| Precios             | `NUMERIC(10,2)` se mantiene como string en las entidades y se convierte a `Money` para calcular.                                                                                       |
+| Nulabilidad         | El SQL permite `NULL` fuera de la clave primaria. Las cuatro entidades están alineadas; la aplicación valida los campos necesarios para calcular, sin agregar restricciones a la base. |
+| Cotizaciones        | Los datos corresponden al 13 y 14 de julio de 2023. Seleccionar el último registro disponible por instrumento.                                                                         |
+| Historial ejecutado | Hay una orden LIMIT histórica `FILLED`; debe contar al reconstruir recursos.                                                                                                           |
+| Tenencia negativa   | Usuario 1, instrumento 31 (BMA): compra de 20 y venta de 30 ejecutadas, con saldo de −10 acciones. Conservar y documentar la anomalía.                                                 |
 
 ## Migraciones y mejoras
 
@@ -104,4 +104,4 @@ npm run test:e2e
 
 Para otra base local, exportar `TEST_DATABASE_URL` en la shell. Solo se admiten hosts loopback y nombres de base terminados en `_test`; no se admiten bases remotas. Las futuras pruebas de órdenes deberán preparar y limpiar sus propios datos sin depender de escrituras de otra prueba.
 
-Se comprobó el arranque de ambos PostgreSQL, la conexión de la API compilada y el CLI `migration:show` contra la base local. Pasaron los e2e de health y búsqueda, incluyendo fixtures propios que se eliminan al terminar. El test funcional de órdenes sigue pendiente; no se verificó ni modificó la base remota.
+En avances anteriores se comprobó PostgreSQL local y pasaron los e2e de health/búsqueda, con limpieza de fixtures. En el avance de portfolio no se inició PostgreSQL local ni Docker; las consultas remotas autorizadas fueron únicamente de lectura. El test funcional de órdenes sigue pendiente.

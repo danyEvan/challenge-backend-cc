@@ -5,18 +5,17 @@ description: 'Aplicar al modificar entidades, consultas, transacciones, índices
 
 # Persistencia y performance
 
-Consultar la [guía de PostgreSQL](../../database/README.md), la estrategia de [consistencia](../../docs/architecture.md) y el procedimiento de [medición](../../docs/evidence/README.md).
+Respetar el motor, esquema, política de concurrencia y permisos del proyecto. No asumir que una base disponible autoriza escrituras o cambios de esquema.
 
-- Conservar `synchronize: false`; verificar esquema e índices existentes antes de preparar cambios.
-- Alinear tipos y nulabilidad con la base. Mantener precisión decimal en los mapeos.
-- Ejecutar todas las operaciones de una transacción con su mismo `EntityManager`, incluido el lector compartido.
-- Respetar el protocolo de bloqueo por usuario y confirmar los rechazos financieros.
-- Seleccionar columnas necesarias, obtener datos en lote y evitar consultas por posición.
-- Evaluar mejoras preservando la detección de datos inválidos y la consistencia financiera.
-- Entregar cambios de esquema mediante migraciones explícitas, con aplicación y reversión documentadas.
-- Revisar SQL generado y evitar índices duplicados o cambios accidentales de esquema.
-- Preparar seed, resets, datos sintéticos y tests de escritura en una base local aislada.
-- Ejecutar cambios remotos cuando la tarea incluya esa ejecución y su destino.
-- Medir condiciones equivalentes y registrar beneficios, costos y límites. Identificar candidatos pendientes.
-- Tener presente que `EXPLAIN ANALYZE` ejecuta la consulta; medir escrituras en la base aislada.
-- Mantener credenciales fuera de archivos de entrega, capturas y logs.
+- Deshabilitar cambios automáticos de esquema en entornos compartidos. Verificar columnas, nulabilidad, claves e índices antes de proponer migraciones.
+- Alinear los mapeos con la base y conservar precisión decimal; validar los campos necesarios sin inventar valores ausentes.
+- Usar la misma conexión o sesión transaccional para todas las operaciones de una transacción, incluidos lectores y adaptadores compartidos.
+- Elegir aislamiento y bloqueos según las invariantes del flujo. Respetar el protocolo de concurrencia existente y confirmar rechazos cuando sean resultados de negocio persistidos.
+- Parametrizar consultas, seleccionar columnas necesarias y obtener datos en lote; evitar consultas por elemento.
+- Optimizar sin debilitar la detección de datos inválidos ni la consistencia de las lecturas.
+- Entregar cambios de esquema mediante migraciones explícitas, con aplicación y reversión documentadas. Revisar el SQL generado y evitar índices duplicados.
+- Preparar seed, resets, datos sintéticos y tests de escritura en una base aislada. No utilizar bases compartidas para fixtures o limpieza automática.
+- Ejecutar cambios remotos únicamente cuando la tarea autorice esa acción y su destino; confirmar el alcance antes de una operación destructiva.
+- Medir consultas reales con datos representativos y condiciones equivalentes. Informar procedimiento, repeticiones, resultados, costos y límites; distinguir candidatos de mejoras comprobadas.
+- Tener presente que herramientas como `EXPLAIN ANALYZE` ejecutan la consulta. Evaluar escrituras y operaciones con efectos secundarios en la base aislada.
+- Mantener credenciales, datos sensibles y cadenas de conexión fuera del código de entrega, capturas y logs.

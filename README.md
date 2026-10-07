@@ -12,7 +12,7 @@ API REST de inversiones desarrollada con Node.js, NestJS, TypeScript y PostgreSQ
 | ------------------- | ---------------------------------------------------------------- | ------------ |
 | Buscar instrumentos | Coincidencias por ticker o nombre, con paginación.               | Implementado |
 | Enviar órdenes      | BUY/SELL, MARKET/LIMIT, cantidad o monto y rechazos persistidos. | Pendiente    |
-| Consultar portfolio | Efectivo, valor total, posiciones y rendimiento.                 | Pendiente    |
+| Consultar portfolio | Efectivo, valor total, posiciones y rendimiento.                 | Implementado |
 | Health              | Disponibilidad de la API y PostgreSQL.                           | Implementado |
 
 También están implementados los cálculos compartidos de dinero, efectivo y tenencias. El test funcional de envío de órdenes está pendiente junto con ese endpoint.
@@ -52,18 +52,21 @@ Las solicitudes están preparadas en [cocos-capital.http](docs/api/cocos-capital
 1. Instalar la extensión [REST Client](https://marketplace.visualstudio.com/items?itemName=humao.rest-client) en VS Code y abrir el archivo.
 2. Pulsar **Send Request** sobre `Application and database readiness - 200` para comprobar que la API y la base estén disponibles.
 3. Ejecutar `Search by ticker - 200`. Con los datos provistos, devuelve GGAL (id 34) en `data`.
-4. Recorrer los demás casos: búsqueda por nombre, paginación, exclusión de moneda y búsqueda sin coincidencias. `Invalid pagination - 400` comprueba un error intencional.
+4. Ejecutar `User portfolio - 200`: el usuario 1 tiene efectivo `753000.00` y valor total `889756.00`, incluyendo la posición heredada de BMA de −10 acciones.
+5. Recorrer los demás casos de búsqueda y portfolio, incluidas respuestas vacías y errores intencionales.
 
 El archivo define `baseUrl=http://localhost:3000`; ajustar ese valor si cambia el puerto de la API. No se requiere autenticación.
 
-Como alternativa desde el navegador, abrir [Swagger](http://localhost:3000/api/docs) y usar **Try it out** en `GET /instruments`. El [contrato HTTP](docs/api/README.md) detalla parámetros, respuestas y errores.
+Como alternativa desde el navegador, abrir [Swagger](http://localhost:3000/api/docs) y usar **Try it out**. El [contrato HTTP](docs/api/README.md) detalla parámetros, respuestas y errores.
 
 La búsqueda acepta `search`, `limit` (20 por defecto) y `offset` (0 por defecto). Devuelve `{ data, meta }`; sin coincidencias responde `200` con `data: []`.
+
+`GET /users/:userId/portfolio` devuelve `{ data }`, sin paginación. Importes y porcentajes son strings de dos decimales; el costo y rendimiento no reconstruibles son `null`.
 
 ## Ejecutar las verificaciones
 
 ```bash
-# Formato, tipos, lint, pruebas unitarias y build; no requiere PostgreSQL.
+# Formato, tipos, lint, pruebas sin base de datos y build.
 npm run verify
 
 # Verificación anterior más pruebas HTTP/e2e contra PostgreSQL aislado.
@@ -72,7 +75,7 @@ npm run verify:all
 
 `verify:all` requiere Docker con Compose e inicia una base aislada (`cocos_test`, puerto `5433`). Los e2e crean y eliminan fixtures allí; no usan `.env` ni la base proporcionada. Para detener los servicios locales conservando sus datos, ejecutar `npm run db:down`.
 
-Las pruebas actuales cubren dinero, reconstrucción de recursos, health y búsqueda. El detalle de cobertura y sus límites están en el [contrato HTTP](docs/api/README.md#persistencia-y-verificaciones) y la [guía de dominio compartido](src/shared/README.md).
+Las pruebas cubren dinero, recursos, portfolio, health y búsqueda. Portfolio agrega cinco escenarios de cálculo y cinco HTTP con repositorio en memoria; no escribe fixtures ni requiere PostgreSQL. El detalle y los límites están en el [contrato HTTP](docs/api/README.md#persistencia-y-verificaciones).
 
 ## Diseño y decisiones
 
@@ -90,7 +93,7 @@ flowchart LR
 - `instruments`: búsqueda del catálogo negociable.
 - `orders`: validación y persistencia de órdenes.
 - `portfolio`: reconstrucción, valuación y rendimiento.
-- `shared`: dinero, movimientos, cotizaciones, persistencia y errores HTTP reutilizados.
+- `shared`: dinero, recursos, lecturas de usuarios y mercado, persistencia y errores HTTP reutilizados.
 
 Los controllers y DTOs pertenecen a infraestructura; los casos de uso y el dominio no dependen de NestJS ni TypeORM. La [guía de arquitectura](docs/architecture.md) contiene el árbol completo, los límites entre módulos y la estrategia de consistencia.
 
@@ -101,8 +104,9 @@ Los controllers y DTOs pertenecen a infraestructura; los casos de uso y el domin
 | Cálculos compartidos con `decimal.js`             | Conservar precisión monetaria y redondear al presentar.         |
 | Recursos reconstruidos desde movimientos `FILLED` | Separar operaciones ejecutadas de pendientes y rechazos.        |
 | Errores HTTP con Problem Details                  | Mantener un formato común sin exponer detalles de persistencia. |
+| Portfolio con snapshot de solo lectura            | Evitar mezclar movimientos y cotizaciones de distintos estados. |
 
-Los criterios financieros y las decisiones pendientes de órdenes y portfolio están en [supuestos funcionales](docs/assumptions.md). La transacción con bloqueo por usuario sigue pendiente de implementación y pruebas con el endpoint de órdenes.
+Los criterios financieros y las decisiones pendientes de órdenes están en [supuestos funcionales](docs/assumptions.md). La transacción con bloqueo por usuario sigue pendiente con el endpoint de órdenes.
 
 ## Documentación técnica
 

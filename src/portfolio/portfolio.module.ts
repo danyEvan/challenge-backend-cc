@@ -1,9 +1,35 @@
 import { Module } from '@nestjs/common';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { InstrumentEntity } from '../shared/infrastructure/persistence/entities/instrument.entity.js';
-import { TradingReadModule } from '../shared/infrastructure/persistence/trading-read.module.js';
+import { DataSource } from 'typeorm';
+import { UserRepository } from '../shared/application/ports/user.repository.js';
+import { UserTypeOrmRepository } from '../shared/infrastructure/persistence/user-typeorm.repository.js';
+import { PortfolioRepository } from './application/ports/portfolio.repository.js';
+import { GetPortfolio } from './application/usecases/get-portfolio.js';
+import { PortfolioController } from './infrastructure/http/controllers/portfolio.controller.js';
+import { PortfolioTypeOrmRepository } from './infrastructure/persistence/portfolio-typeorm.repository.js';
 
 @Module({
-  imports: [TradingReadModule, TypeOrmModule.forFeature([InstrumentEntity])],
+  controllers: [PortfolioController],
+  providers: [
+    {
+      provide: UserRepository,
+      inject: [DataSource],
+      useFactory: (dataSource: DataSource) =>
+        new UserTypeOrmRepository(dataSource.manager),
+    },
+    {
+      provide: PortfolioRepository,
+      inject: [DataSource],
+      useFactory: (dataSource: DataSource) =>
+        new PortfolioTypeOrmRepository(dataSource),
+    },
+    {
+      provide: GetPortfolio,
+      inject: [PortfolioRepository, UserRepository],
+      useFactory: (
+        repository: PortfolioRepository,
+        userRepository: UserRepository,
+      ) => new GetPortfolio(repository, userRepository),
+    },
+  ],
 })
 export class PortfolioModule {}

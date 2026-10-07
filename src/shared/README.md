@@ -2,14 +2,14 @@
 
 Capacidades utilizadas por varios módulos. Sus límites se explican en [arquitectura](../../docs/architecture.md).
 
-| Carpeta                       | Responsabilidad                                               |
-| ----------------------------- | ------------------------------------------------------------- |
-| `domain/money/`               | Aritmética monetaria inmutable en ARS.                        |
-| `domain/account/`             | Movimientos y reconstrucción de efectivo y cantidades.        |
-| `domain/trading/`             | Vocabulario compartido y datos de cotizaciones.               |
-| `application/ports/`          | Contrato de lectura de usuarios, movimientos y precios.       |
-| `infrastructure/persistence/` | Conexión, entidades, adaptador TypeORM y `TradingReadModule`. |
-| `infrastructure/http/`        | Filtro compartido y DTO de Problem Details.                   |
+| Carpeta                       | Responsabilidad                                                 |
+| ----------------------------- | --------------------------------------------------------------- |
+| `domain/money/`               | Aritmética monetaria inmutable en ARS.                          |
+| `domain/account/`             | Movimientos y reconstrucción de efectivo y cantidades.          |
+| `domain/trading/`             | Vocabulario compartido y datos de cotizaciones.                 |
+| `application/ports/`          | Puertos separados para usuarios y lecturas de mercado.          |
+| `infrastructure/persistence/` | Conexión, entidades, adaptadores TypeORM y `TradingReadModule`. |
+| `infrastructure/http/`        | Filtro compartido y DTO de Problem Details.                     |
 
 ## Dinero
 
@@ -33,19 +33,21 @@ cantidad = SUM(BUY.size) − SUM(SELL.size)
 - Los estados `NEW`, `REJECTED` y `CANCELLED` no afectan recursos, bajo la política de reservas documentada en [supuestos](../../docs/assumptions.md).
 - Conservar saldos y cantidades negativos heredados; omitir posiciones cerradas con cantidad cero.
 - Exigir cantidades ejecutadas positivas y enteras seguras; comprobar también el rango de las cantidades acumuladas.
-- Un precio histórico ausente en una compra o venta ejecutada produce un error. Un precio conocido de cero permite reconstruir recursos.
+- Un precio histórico ausente o negativo en una compra/venta ejecutada produce `InvalidAccountHistoryError`. Un precio conocido de cero permite reconstruir recursos.
 - La validación de órdenes nuevas y el cálculo de costo/rendimiento pertenecen a sus features.
 
 ## Lecturas
 
-`TradingRepository` es el contrato abstracto para consultar existencia de usuario, movimientos ejecutados y últimas cotizaciones. Está en `application/ports/trading.repository.ts` y también funciona como token de inyección.
+`UserRepository`, en `application/ports/user.repository.ts`, declara `exists(userId)`. `UserTypeOrmRepository` implementa la consulta a `UserEntity`; el caso de uso decide qué hacer si no existe. `PortfolioModule` registra el adaptador mediante una factory.
 
-Los movimientos se ordenan por `datetime ASC, id ASC`. Las cotizaciones se eligen por instrumento y `date DESC NULLS LAST, id DESC`, sin exigir la fecha actual. Un instrumento sin cotización queda ausente del resultado; el caso de uso decide cómo informar datos insuficientes.
+`TradingRepository` es el contrato abstracto para consultar movimientos ejecutados y últimas cotizaciones. Está en `application/ports/trading.repository.ts`. Ambos puertos también funcionan como tokens de inyección.
+
+Los movimientos se ordenan por `datetime ASC, id ASC`; campos imprescindibles ausentes producen `InvalidAccountHistoryError`. El tipo histórico puede ser nulo: el estado ejecutado, no el tipo, determina su efecto. Las cotizaciones se eligen por instrumento y `date DESC NULLS LAST, id DESC`, sin exigir la fecha actual. Un instrumento sin cotización queda ausente; precio o fecha nulos permanecen nulos para que el consumidor informe datos insuficientes.
 
 ## Integración transaccional
 
 `TradingTypeOrmRepository`, en `infrastructure/persistence/trading-typeorm.repository.ts`, implementa ese contrato y recibe un `EntityManager` en su constructor. La instancia de `TradingReadModule` utiliza el manager global y no abre transacciones.
 
-Para órdenes, infraestructura deberá conectar el repositorio con el manager de la transacción después de bloquear al usuario. Portfolio deberá mantener un mismo snapshot para sus lecturas. El manager permanece dentro de infraestructura.
+Para órdenes, infraestructura deberá conectar el repositorio con el manager de la transacción después de bloquear al usuario. `GetPortfolio` consulta existencia mediante `UserRepository` antes de pedir el snapshot. Para movimientos y cotizaciones, el adaptador de portfolio crea su lector con el manager de una transacción `REPEATABLE READ` / `READ ONLY`. El manager permanece dentro de infraestructura.
 
-Existen pruebas unitarias de dinero y recursos. La integración de las lecturas con PostgreSQL está pendiente.
+Existen pruebas de dinero, recursos y portfolio sin base de datos. Las pruebas automatizadas de integración transaccional con PostgreSQL siguen pendientes.

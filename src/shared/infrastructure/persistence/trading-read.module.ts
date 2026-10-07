@@ -4,13 +4,10 @@ import { DataSource } from 'typeorm';
 import { TradingRepository } from '../../application/ports/trading.repository.js';
 import { MarketDataEntity } from './entities/market-data.entity.js';
 import { OrderEntity } from './entities/order.entity.js';
-import { UserEntity } from './entities/user.entity.js';
 import { TradingTypeOrmRepository } from './trading-typeorm.repository.js';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([UserEntity, OrderEntity, MarketDataEntity]),
-  ],
+  imports: [TypeOrmModule.forFeature([OrderEntity, MarketDataEntity])],
   providers: [
     {
       provide: TradingRepository,

@@ -1,6 +1,7 @@
 import { Money } from '../money/money.js';
 import type { AccountMovement } from './account-movement.js';
 import { OrderSide, OrderStatus } from '../trading/trading.types.js';
+import { InvalidAccountHistoryError } from './errors/invalid-account-history.error.js';
 
 export type AccountResources = Readonly<{
   availableCash: Money;
@@ -15,10 +16,14 @@ export function calculateAccountResources(
 
   for (const movement of movements) {
     // Las ordenes NEW no reservan
-    if (movement.status !== OrderStatus.FILLED) continue;
+    if (movement.status !== OrderStatus.FILLED) {
+      continue;
+    }
 
     if (!Number.isSafeInteger(movement.size) || movement.size <= 0) {
-      throw new RangeError('Executed movement size must be a positive integer');
+      throw new InvalidAccountHistoryError(
+        'Executed movement size must be a positive integer',
+      );
     }
 
     switch (movement.side) {
@@ -33,7 +38,14 @@ export function calculateAccountResources(
       case OrderSide.BUY:
       case OrderSide.SELL: {
         if (movement.price === null) {
-          throw new RangeError('Executed trades require a historical price');
+          throw new InvalidAccountHistoryError(
+            'Executed trades require a historical price',
+          );
+        }
+        if (movement.price.isNegative()) {
+          throw new InvalidAccountHistoryError(
+            'Executed trade price cannot be negative',
+          );
         }
         const isBuy = movement.side === OrderSide.BUY;
         const tradeValue = movement.price.multiply(movement.size);
@@ -45,7 +57,7 @@ export function calculateAccountResources(
           (positions.get(movement.instrumentId) ?? 0) +
           (isBuy ? movement.size : -movement.size);
         if (!Number.isSafeInteger(quantity)) {
-          throw new RangeError(
+          throw new InvalidAccountHistoryError(
             'Position quantity exceeds the safe integer range',
           );
         }
@@ -59,7 +71,9 @@ export function calculateAccountResources(
         break;
       }
       default:
-        throw new RangeError('Unsupported executed movement side');
+        throw new InvalidAccountHistoryError(
+          'Unsupported executed movement side',
+        );
     }
   }
 

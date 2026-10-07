@@ -5,8 +5,8 @@ export class MarketDataEntity {
   @PrimaryGeneratedColumn()
   id!: number;
 
-  @Column({ name: 'instrumentid', type: 'int' })
-  instrumentId!: number;
+  @Column({ name: 'instrumentid', type: 'int', nullable: true })
+  instrumentId!: number | null;
 
   @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
   high!: string | null;
@@ -17,12 +17,18 @@ export class MarketDataEntity {
   @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
   open!: string | null;
 
-  @Column({ type: 'numeric', precision: 10, scale: 2 })
-  close!: string;
+  @Column({ type: 'numeric', precision: 10, scale: 2, nullable: true })
+  close!: string | null;
 
-  @Column({ name: 'previousclose', type: 'numeric', precision: 10, scale: 2 })
-  previousClose!: string;
+  @Column({
+    name: 'previousclose',
+    type: 'numeric',
+    precision: 10,
+    scale: 2,
+    nullable: true,
+  })
+  previousClose!: string | null;
 
-  @Column({ type: 'date' })
-  date!: string;
+  @Column({ type: 'date', nullable: true })
+  date!: string | null;
 }

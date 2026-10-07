@@ -3,114 +3,55 @@ trigger: model_decision
 description: 'Aplicar al diseñar, implementar o revisar endpoints REST, DTOs, contratos HTTP y documentación de la API.'
 ---
 
-# Estándares de diseño y contratos de API REST
+# Diseño y contratos de API REST
 
-Antes de trabajar en un endpoint, consultar el [contrato HTTP](../../docs/api/README.md), la [arquitectura](../../docs/architecture.md) y los [supuestos funcionales](../../docs/assumptions.md).
+Estas son convenciones de diseño reutilizables, no un formato universal de API. Preservar los contratos y excepciones explícitos del proyecto; no agregar funcionalidades para cumplir una convención. La regla no depende de un framework ni de documentación en rutas particulares.
 
-Esta regla establece convenciones de recursos, contratos, respuestas y errores para este proyecto. Aplicarlas mediante los mecanismos idiomáticos del stack existente: controllers, DTOs y filtros HTTP en NestJS. Mantener dominio y aplicación independientes del framework.
+## Recursos y rutas
 
-Las respuestas de éxito de los endpoints de negocio usan `data` y, para listados paginados, `meta`. Health conserva su contrato de infraestructura. Las excepciones específicas del challenge se indican en esta regla. Cualquier cambio de contrato debe incluir implementación, documentación, ejemplos y pruebas que coincidan.
+- Representar recursos con sustantivos, no acciones RPC: `POST /orders`, no `POST /createOrder`.
+- Usar rutas en minúsculas y recursos plurales; kebab-case para nombres compuestos. Un recurso único dentro de su dueño puede ser singular, como `/users/:userId/portfolio`.
+- Limitar el anidamiento a dos niveles; utilizar filtros para relaciones más profundas. Diseñar rutas canónicas sin barra final.
 
----
+## Métodos y estados
 
-## 1. Modelado de recursos y diseño de rutas
+Respetar la semántica de [HTTP](https://www.rfc-editor.org/rfc/rfc9110.html):
 
-- **Solo sustantivos:** Los endpoints deben representar recursos, nunca acciones o estilo RPC.
-  - Correcto: `POST /orders`, `GET /users`
-  - Incorrecto: `POST /createOrder`, `GET /get-users`
-- **Plural y casing:** Los recursos deben ir en minúsculas y en plural. Los recursos compuestos deben usar kebab-case (`/payment-methods`).
-  - Los recursos únicos pueden ser singulares: `/users/:userId/portfolio`. `/health` conserva su contrato de infraestructura.
-- **Límite de anidamiento:** Máximo dos niveles de recursos: `/parents/{parentId}/children`. Para relaciones más profundas, usar query parameters: `/items?categoryId={id}&supplierId={id}`.
-- **Sin barra final:** Diseñar rutas canónicas sin barra final, como `/users`.
+- `GET`: seguro e idempotente, sin escrituras ni body de solicitud. `200` para resultados, incluso listados vacíos; `404` para un recurso específico inexistente.
+- `POST`: no seguro ni necesariamente idempotente. `201` cuando crea un recurso, `200` para un resultado sin creación y `202` solo si el procesamiento es asíncrono. Para creaciones, preferir `Location` con la URI canónica como convención, no como obligación universal.
+- `PUT`: idempotente, reemplaza el estado del recurso; `201` si crea y `200` o `204` si actualiza.
+- `PATCH`: modificación parcial, sin asumir idempotencia. Si se adopta JSON Merge Patch, documentar su media type y el significado de `null`.
+- `DELETE`: idempotente; `204` para eliminación sin cuerpo de respuesta.
 
----
+No incorporar métodos o procesamiento asíncrono fuera del alcance. Referencias: [PATCH](https://www.rfc-editor.org/rfc/rfc5789.html) y [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7396.html).
 
-## 2. Métodos HTTP y códigos de estado
+## Entradas y parámetros
 
-Respetar la semántica de cada verbo y documentar el comportamiento de la operación:
+- Declarar `Content-Type` para cuerpos y formatos específicos; usar `Accept: application/json, application/problem+json` en ejemplos JSON. No exigir cabeceras adicionales sin definirlas en el contrato.
+- Mantener casing consistente en JSON y query parameters; usar camelCase si no existe otra convención.
+- Definir tipos, longitudes, rangos, campos permitidos y combinaciones. Rechazar parámetros desconocidos o repetidos cuando el contrato espera valores únicos.
+- Parametrizar consultas y documentar si comodines de búsqueda son literales o parte de la sintaxis.
+- Paginar solo recorridos que lo necesiten. Elegir cursor u offset según el caso; definir límites, defaults y orden estable, sin sustituir el contrato existente.
+- Usar filtros y ordenamientos explícitos; por ejemplo, `status=active` o `sort=-createdAt,amount`.
+- Para POST financieros críticos, definir idempotencia si forma parte del alcance: formato y alcance de clave, reutilización con otro payload y atomicidad de clave/resultado. Recibir `Idempotency-Key` no garantiza idempotencia.
+- Documentar y propagar trazabilidad si se incorpora. No agregar headers ni infraestructura distribuida solo por esta convención.
 
-- `GET`: Seguro e idempotente. Nunca modifica estado ni recibe body.
-  - `200 OK`: Devuelve el recurso o listado solicitado.
-  - `404 Not Found`: El recurso específico no existe.
-- `POST`: No seguro y sin garantía de idempotencia por el verbo. Para creación de recursos o ejecución de procesos.
-  - `201 Created`: Recurso creado. Incluir `Location` con la URI canónica del recurso como convención del proyecto. HTTP también permite identificarlo mediante la URI de la solicitud; no presentar esta convención como una obligación universal.
-  - `200 OK`: Procesamiento sincrónico completado que no crea un recurso.
-  - `202 Accepted`: Trabajo aceptado y todavía pendiente; documentar cómo se consulta su resultado si se incorpora ese flujo.
-- `PUT`: Idempotente. Reemplazo completo del estado del recurso.
-  - `201 Created` si crea un recurso.
-  - `200 OK` (con el recurso modificado) o `204 No Content`.
-- `PATCH`: Modificación parcial; su idempotencia depende de la operación. No asumir que todo PATCH usa Merge Patch.
-  - `200 OK` (con el recurso modificado) o `204 No Content`.
-  - Si se adopta JSON Merge Patch, documentar `Content-Type: application/merge-patch+json` y el tratamiento de `null`.
-- `DELETE`: Idempotente. Eliminación del recurso.
-  - `204 No Content`: Eliminado con éxito o ya inexistente. Sin cuerpo de respuesta.
+## Respuestas
 
-Estas convenciones no agregan endpoints PUT/PATCH/DELETE ni ejecución asíncrona al alcance del challenge. Referencias: [HTTP](https://www.rfc-editor.org/rfc/rfc9110.html), [PATCH](https://www.rfc-editor.org/rfc/rfc5789.html), [JSON Merge Patch](https://www.rfc-editor.org/rfc/rfc7396.html).
+- Preferir objetos en la raíz: `{ data }` para un recurso y `{ data, meta }` para listados paginados. Preservar excepciones y contratos existentes; no afirmar cumplimiento de JSON:API por usar esos nombres.
+- Definir campos, nulabilidad, fechas y significado de metadata. No incluir conteos o indicadores de paginación que no se calculen.
+- Conservar precisión: importes financieros como strings decimales y cantidades enteras cuando no se admitan fracciones. Definir redondeo y presentación explícitamente.
+- Usar DTOs o esquemas HTTP separados de los modelos de negocio. Evitar un envoltorio automático que cambie errores, respuestas sin cuerpo o contratos de infraestructura.
 
----
+## Errores
 
-## 3. Requests y parámetros de consulta
+- Usar [Problem Details](https://www.rfc-editor.org/rfc/rfc9457.html), con `Content-Type: application/problem+json`, sin envolver el error en `data`.
+- Definir `type`, `title`, `status`, `detail` e `instance`; agregar extensiones como `code` o `errors` de manera consistente con el contrato.
+- Mantener códigos estables y detalles de validación útiles. No publicar credenciales, SQL, stack traces ni mensajes internos de persistencia.
+- Traducir excepciones de negocio desde infraestructura. Distinguir un resultado de negocio rechazado de un error HTTP; el estado HTTP depende de si se creó un registro u ocurrió un fallo.
 
-- **Cabeceras:** Peticiones con cuerpo JSON deben enviar `Content-Type: application/json`, salvo formatos específicos documentados, como Merge Patch. En ejemplos de clientes, indicar `Accept: application/json, application/problem+json`. No exigir cabeceras adicionales en el servidor sin definirlas en el contrato.
-- **Casing:** Las claves JSON y parámetros de consulta deben mantener consistencia en todo el proyecto (por defecto: `camelCase`).
-- **Convenciones para Query Params:**
-  - **Paginación:** Preferir `?cursor={token}&limit={n}` para recorridos que lo necesiten. Para desplazamiento, usar `?offset={n}&limit={n}`; para páginas, `?page={n}&limit={n}`. La búsqueda actual conserva `limit/offset`, con límites y valores predeterminados definidos en el contrato.
-  - **Filtros:** Campos explícitos: `?status=active&createdAfter=2026-01-01T00:00:00Z`.
-  - **Ordenamiento:** Lista separada por comas, anteponiendo `-` para orden descendente: `?sort=-createdAt,amount`.
-- **Validación:** Comprobar tipos, longitudes, rangos, campos permitidos y combinaciones antes de persistir. Rechazar parámetros repetidos cuando se espera un único valor. Parametrizar consultas y documentar el tratamiento literal de comodines en búsquedas.
-- **Cabeceras de control y trazabilidad:**
-  - `Idempotency-Key`: Requerida como estándar general para POST financieros críticos; definir formato, alcance, reutilización con otro payload y atomicidad de clave/resultado. Recibir el header no constituye por sí solo una garantía.
-  - **Excepción vigente del challenge:** idempotencia sigue siendo una ampliación opcional, conforme a los [supuestos](../../docs/assumptions.md#alcance-y-decisiones-pendientes). No exigir el header ni ampliar su implementación por aplicar esta regla. Si se incorpora, verificar la garantía con PostgreSQL.
-  - `X-Correlation-ID` o W3C `traceparent`: Documentar y propagar si se incorpora trazabilidad. No agregar infraestructura distribuida únicamente para cumplir esta convención.
+## Documentación y verificación
 
----
-
-## 4. Respuestas y envoltorios
-
-Queda prohibido devolver arrays en la raíz del JSON. Toda respuesta con payload debe ser un objeto.
-
-Definir campos, tipos, nulabilidad y fechas explícitamente. Usar DTOs de salida y conservar precisión: importes como strings decimales y cantidades como enteros. Evitar un interceptor que envuelva indiscriminadamente contratos existentes, errores o respuestas `204`.
-
-### Recurso individual (`200 OK` / `201 Created`)
-
-Usar `data` como envoltorio de los éxitos de negocio. El siguiente ejemplo es orientativo y no representa un endpoint de órdenes implementado:
-
-```json
-{
-  "data": {
-    "id": 101,
-    "price": "2500.00",
-    "currency": "ARS",
-    "status": "FILLED",
-    "createdAt": "2026-10-06T12:00:00Z"
-  }
-}
-```
-
-### Listados
-
-Usar `data` para los elementos y `meta` para los datos de paginación, con orden estable. La búsqueda implementada utiliza este formato, sin conteo total:
-
-```json
-{
-  "data": [],
-  "meta": {
-    "limit": 20,
-    "offset": 0
-  }
-}
-```
-
-## 5. Errores
-
-- Usar el filtro compartido de Problem Details y `Content-Type: application/problem+json`. Presentar el error en la raíz, sin envolverlo en `data`. [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457.html).
-- Mantener `type`, `title`, `status`, `detail`, `instance`, `code` y, cuando corresponda, `errors`, según el [contrato implementado](../../docs/api/README.md#errores-http).
-- Mantener códigos estables y detalles útiles de validación. No publicar credenciales, SQL, stack traces ni mensajes internos de persistencia.
-- Las excepciones propias de negocio son independientes de NestJS; se definen al implementar una condición real de fallo y se traducen a HTTP desde infraestructura. Los errores de validación HTTP usan el mecanismo existente. Una búsqueda sin coincidencias devuelve `200` y `data: []`.
-- Diferenciar errores HTTP del resultado financiero de una orden. El criterio propuesto para registrar órdenes es `201` con estado `FILLED`, `NEW` o `REJECTED`: se crea el registro incluso cuando el resultado financiero es rechazo. Documentarlo al implementar el flujo; todavía está pendiente.
-
-## 6. Documentación y verificaciones
-
-- Al completar un endpoint, actualizar Swagger, [contrato HTTP](../../docs/api/README.md), [REST Client](../../docs/api/cocos-capital.http) y pasos de uso del [README](../../README.md). Mantener REST Client como único archivo de solicitudes de la entrega, siguiendo el [índice de documentación](../../docs/README.md).
-- Comprobar contrato HTTP y comportamiento con pruebas relevantes, siguiendo las [reglas de negocio](trading-architecture.md).
-- Registrar implementación, decisiones pendientes y verificaciones en `.agents/context.md` local, si existe.
+- Mantener implementación, especificación HTTP, ejemplos y pruebas alineados al cambiar un contrato.
+- Actualizar la documentación y el cliente de solicitudes elegidos por el proyecto, sin introducir herramientas adicionales por esta regla.
+- Comprobar casos e invariantes relevantes; registrar qué quedó implementado, verificado o pendiente.
