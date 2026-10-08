@@ -1,5 +1,8 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, RequestMethod } from '@nestjs/common';
+import type { NestModule } from '@nestjs/common';
 import { DataSource } from 'typeorm';
+import { IdempotencyKeyMiddleware } from '#src/shared/infrastructure/http/idempotency-key.middleware.js';
+import { IdempotencyKeyContext } from '#src/shared/infrastructure/idempotency/idempotency-key.context.js';
 import { OrderRepository } from '#src/orders/application/ports/order.repository.js';
 import { SubmitOrder } from '#src/orders/application/usecases/submit-order.js';
 import { OrdersController } from '#src/orders/infrastructure/http/controllers/orders.controller.js';
@@ -8,11 +11,15 @@ import { OrderTypeOrmRepository } from '#src/orders/infrastructure/persistence/o
 @Module({
   controllers: [OrdersController],
   providers: [
+    IdempotencyKeyContext,
+    IdempotencyKeyMiddleware,
     {
       provide: OrderRepository,
-      inject: [DataSource],
-      useFactory: (dataSource: DataSource) =>
-        new OrderTypeOrmRepository(dataSource),
+      inject: [DataSource, IdempotencyKeyContext],
+      useFactory: (
+        dataSource: DataSource,
+        idempotencyKeyContext: IdempotencyKeyContext,
+      ) => new OrderTypeOrmRepository(dataSource, idempotencyKeyContext),
     },
     {
       provide: SubmitOrder,
@@ -21,4 +28,11 @@ import { OrderTypeOrmRepository } from '#src/orders/infrastructure/persistence/o
     },
   ],
 })
-export class OrdersModule {}
+export class OrdersModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(IdempotencyKeyMiddleware).forRoutes({
+      path: 'orders',
+      method: RequestMethod.POST,
+    });
+  }
+}

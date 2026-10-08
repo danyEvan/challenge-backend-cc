@@ -4,7 +4,7 @@ import type {
   OrderType,
 } from '#src/shared/domain/trading/trading.types.js';
 
-export interface SubmitOrderInput {
+export interface OrderRequest {
   readonly userId: number;
   readonly instrumentId: number;
   readonly side: OrderSide;

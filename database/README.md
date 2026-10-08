@@ -6,25 +6,25 @@ PostgreSQL contiene usuarios, instrumentos, movimientos y precios de mercado. El
 
 La API lee `DATABASE_URL` desde el entorno o `.env`. El [archivo de ejemplo](../.env.example) contiene valores locales y un formato para completar la conexión remota.
 
-La base proporcionada ya contiene datos. Se inspeccionaron mediante consultas de solo lectura sus columnas, nulabilidad, claves e índices: coinciden con el esquema funcional del SQL provisto. La configuración mantiene `synchronize: false`; no se aplicaron migraciones ni se corrigieron datos.
+La base proporcionada ya contiene datos. Se inspeccionaron mediante consultas de solo lectura sus columnas, nulabilidad, claves e índices, que coinciden con el esquema funcional del SQL provisto. La configuración mantiene `synchronize: false`. El esquema adicional se entrega mediante migraciones explícitas y no se corrigen los datos originales.
 
 | Variable       | Valor o validación                                     |
 | -------------- | ------------------------------------------------------ |
-| `DATABASE_URL` | Obligatoria; URL PostgreSQL con host y nombre de base. |
+| `DATABASE_URL` | Obligatoria. URL PostgreSQL con host y nombre de base. |
 | `NODE_ENV`     | `development` (predeterminado), `test` o `production`. |
-| `PORT`         | Entero entre 1 y 65535; predeterminado `3000`.         |
+| `PORT`         | Entero entre 1 y 65535. Predeterminado `3000`.         |
 
 El entorno prevalece sobre `.env`. En tests no se carga ese archivo. Host, puerto y credenciales se especifican en la URL, sin parámetros alternativos que cambien el destino. La API cierra sus conexiones al recibir `SIGINT` o `SIGTERM`.
 
 ### TLS y conexión
 
-`sslmode=verify-full` verifica certificado y hostname. `require` se normaliza a `verify-full`; sin modo explícito, conexiones a loopback usan `disable` y las demás `verify-full`. Un servidor local sin TLS en otro hostname requiere `sslmode=disable` explícito. No se usa `rejectUnauthorized: false`.
+`sslmode=verify-full` verifica certificado y hostname. `require` se normaliza a `verify-full`. Sin modo explícito, las conexiones a loopback usan `disable` y las demás `verify-full`. Un servidor local sin TLS en otro hostname requiere `sslmode=disable` explícito. No se usa `rejectUnauthorized: false`.
 
-La configuración mantiene TLS en la URL porque [`pg` permite que sus parámetros reemplacen las opciones SSL del driver](https://node-postgres.com/features/ssl). Se rechazan los parámetros alternativos `ssl` y `uselibpqcompat` para evitar configuraciones contradictorias. El driver habilita channel binding cuando el servidor lo ofrece; no se afirma que el parámetro de URL `channel_binding=require` lo fuerce.
+La configuración mantiene TLS en la URL porque [`pg` permite que sus parámetros reemplacen las opciones SSL del driver](https://node-postgres.com/features/ssl). Se rechazan los parámetros alternativos `ssl` y `uselibpqcompat` para evitar configuraciones contradictorias. El driver habilita channel binding cuando el servidor lo ofrece. No se afirma que el parámetro de URL `channel_binding=require` lo fuerce.
 
 El pool tiene hasta 10 conexiones por proceso y un timeout de conexión de 5 segundos. Nest realiza hasta 3 intentos de conexión, separados por 1 segundo. Las migraciones no se ejecutan al iniciar la API.
 
-El logging de errores de consultas TypeORM está deshabilitado porque incluye SQL y parámetros. El filtro HTTP registra un mensaje genérico ante fallos inesperados; el diagnóstico interno con información sanitizada sigue pendiente.
+El logging de errores de consultas TypeORM está deshabilitado porque incluye SQL y parámetros. El filtro HTTP registra un mensaje genérico ante fallos inesperados. El diagnóstico interno con información sanitizada sigue pendiente.
 
 ## Preparar una base local
 
@@ -34,7 +34,7 @@ Con Docker y Compose, desde la raíz del proyecto:
 npm run db:up
 ```
 
-El servicio utiliza PostgreSQL 17, puerto `127.0.0.1:5432`, usuario/contraseña `poc` y base `neondb`. Compose espera a que PostgreSQL esté disponible y carga el seed solo al inicializar un volumen vacío. Los datos persisten al detener los servicios con `npm run db:down`; modificar el SQL no vuelve a cargar un volumen existente.
+El servicio utiliza PostgreSQL 17, puerto `127.0.0.1:5432`, usuario/contraseña `poc` y base `neondb`. Compose espera a que PostgreSQL esté disponible y carga el seed solo al inicializar un volumen vacío. Los datos persisten al detener los servicios con `npm run db:down`. Modificar el SQL no vuelve a cargar un volumen existente.
 
 Si `5432` ya está ocupado, configurar otro `POSTGRES_PORT` en `.env` y ajustar el puerto de `DATABASE_URL` para que coincidan. También se puede iniciar una vez con `POSTGRES_PORT=5434 npm run db:up` y pasar esa URL explícitamente a la API o al CLI.
 
@@ -54,19 +54,21 @@ El script requiere una base vacía: crea tablas e inserta datos, y no admite eje
 
 ## Particularidades del esquema y el seed
 
-| Tema                | Consideración                                                                                                                                                                          |
-| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Nombres físicos     | PostgreSQL crea `userid`, `instrumentid`, `accountnumber` y `previousclose` en minúsculas.                                                                                             |
-| Fecha de mercado    | La columna de cotizaciones es `marketdata.date`.                                                                                                                                       |
-| Precios             | `NUMERIC(10,2)` se mantiene como string en las entidades y se convierte a `Money` para calcular.                                                                                       |
-| Nulabilidad         | El SQL permite `NULL` fuera de la clave primaria. Las cuatro entidades están alineadas; la aplicación valida los campos necesarios para calcular, sin agregar restricciones a la base. |
-| Cotizaciones        | Los datos corresponden al 13 y 14 de julio de 2023. Seleccionar el último registro disponible por instrumento.                                                                         |
-| Historial ejecutado | Hay una orden LIMIT histórica `FILLED`; debe contar al reconstruir recursos.                                                                                                           |
-| Tenencia negativa   | Usuario 1, instrumento 31 (BMA): compra de 20 y venta de 30 ejecutadas, con saldo de −10 acciones. Conservar y documentar la anomalía.                                                 |
+| Tema                | Consideración                                                                                                                                                                           |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nombres físicos     | PostgreSQL crea `userid`, `instrumentid`, `accountnumber` y `previousclose` en minúsculas.                                                                                              |
+| Fecha de mercado    | La columna de cotizaciones es `marketdata.date`.                                                                                                                                        |
+| Precios             | `NUMERIC(10,2)` se mantiene como string en las entidades y se convierte a `Money` para calcular.                                                                                        |
+| Nulabilidad         | El SQL permite `NULL` fuera de la clave primaria. Las cuatro entidades están alineadas y la aplicación valida los campos necesarios para calcular, sin agregar restricciones a la base. |
+| Cotizaciones        | Los datos corresponden al 13 y 14 de julio de 2023. Seleccionar el último registro disponible por instrumento.                                                                          |
+| Historial ejecutado | Hay una orden LIMIT histórica `FILLED` que debe contar al reconstruir recursos.                                                                                                         |
+| Tenencia negativa   | Usuario 1, instrumento 31 (BMA): compra de 20 y venta de 30 ejecutadas, con saldo de −10 acciones. Conservar y documentar la anomalía.                                                  |
 
 ## Migraciones y mejoras
 
-El [DataSource de migraciones](../src/shared/infrastructure/persistence/data-source.ts) comparte configuración y entidades con la API. Las migraciones incrementales se escribirán en `src/shared/infrastructure/persistence/migrations/`; todavía no hay cambios de esquema aprobados por mediciones.
+El [DataSource de migraciones](../src/shared/infrastructure/persistence/data-source.ts) comparte configuración y entidades con la API. Las migraciones incrementales se registran explícitamente en `database.options.ts`. No se ejecutan al iniciar la aplicación.
+
+La [migración de idempotencia](../src/shared/infrastructure/persistence/migrations/1791374400000-create-idempotency-records.ts) crea `idempotency_records` con `varchar` para operación, alcance y hash, y `uuid` para la clave. También guarda código HTTP, resultado JSON y fecha. `UNIQUE (operation, scope, key)` arbitra reintentos concurrentes sin acoplar el esquema a `orders`. Para órdenes, el alcance identifica al usuario. Una restricción exige que código y resultado estén ambos pendientes o ambos completos. La migración inversa elimina la tabla. Una fila sin resultado confirmado solo existe dentro de la transacción activa.
 
 | Comando                    | Acción                                         |
 | -------------------------- | ---------------------------------------------- |
@@ -74,24 +76,15 @@ El [DataSource de migraciones](../src/shared/infrastructure/persistence/data-sou
 | `npm run migration:run`    | Compilar y aplicar las pendientes.             |
 | `npm run migration:revert` | Compilar y revertir la última aplicada.        |
 
-Los comandos usan `DATABASE_URL` del entorno o `.env`. Para elegir la base local explícitamente:
+Los comandos usan `DATABASE_URL` del entorno o `.env`. Antes de aplicar, revisar el destino con `migration:show`. Para elegir la base local explícitamente:
 
 ```bash
 DATABASE_URL='postgresql://poc:poc@127.0.0.1:5432/neondb?sslmode=disable' npm run migration:show
 ```
 
-El seed crea el esquema inicial únicamente en la base local. Las migraciones futuras parten del esquema existente; no recrean tablas ni recargan datos. Revisar SQL y destino antes de aplicarlas a la base proporcionada.
+El seed crea el esquema inicial únicamente en la base local. Las migraciones parten del esquema existente y no recrean las cuatro tablas originales ni recargan datos. Revisar SQL y destino antes de aplicarlas a la base proporcionada.
 
-Antes de preparar una migración, comprobar los índices existentes y medir la consulta que se busca mejorar. Los candidatos actuales son:
-
-| Consulta                                                   | Índice candidato                                           |
-| ---------------------------------------------------------- | ---------------------------------------------------------- |
-| Movimientos ejecutados de un usuario, en orden cronológico | `orders (userid, status, datetime, id)`                    |
-| Última cotización por instrumento                          | `marketdata (instrumentid, date DESC NULLS LAST, id DESC)` |
-
-Para la búsqueda por subcadena se consideró `pg_trgm`, pero no se incorporó al catálogo actual. La justificación y el criterio para retomarlo están en [supuestos y decisiones](../docs/assumptions.md#búsqueda-e-índices).
-
-Estas propuestas aún no se implementaron ni midieron. Registrar comparaciones, costo de escrituras y almacenamiento en [docs/evidence](../docs/evidence/README.md), y documentar la aplicación y reversión de cada migración aceptada.
+No se conservó ninguna migración de índices de performance. Las consultas de órdenes ejecutadas y últimas cotizaciones se compararon con y sin índices en la base local. PostgreSQL mantuvo los recorridos secuenciales con el volumen actual. La medición, sus límites y el criterio para revisarlo si crecen los datos están en [supuestos y decisiones](../docs/assumptions.md#índices-de-órdenes-y-cotizaciones). La búsqueda por subcadena tampoco incorpora `pg_trgm`. La decisión se explica en la [misma guía](../docs/assumptions.md#búsqueda-e-índices). La restricción única de idempotencia se conserva porque garantiza corrección, no como optimización de estas consultas.
 
 ## Base de pruebas
 
@@ -102,6 +95,6 @@ npm run test:e2e
 
 `postgres-test` usa otro volumen, el puerto `127.0.0.1:5433` y la base `cocos_test`, inicializada con el mismo seed. La configuración e2e fija `NODE_ENV=test` y su URL, sin leer `.env` ni reutilizar `DATABASE_URL` de la API.
 
-Para otra base local, exportar `TEST_DATABASE_URL` en la shell. Solo se admiten hosts loopback y nombres de base terminados en `_test`; no se admiten bases remotas. Las futuras pruebas de órdenes deberán preparar y limpiar sus propios datos sin depender de escrituras de otra prueba.
+Para otra base local, exportar `TEST_DATABASE_URL` en la shell. Solo se admiten hosts loopback y nombres de base terminados en `_test`. No se admiten bases remotas. Las pruebas de órdenes preparan y limpian sus propios datos sin depender de escrituras de otra prueba.
 
-En avances anteriores se comprobó PostgreSQL local y pasaron los e2e de health/búsqueda, con limpieza de fixtures. En el avance de portfolio no se inició PostgreSQL local ni Docker; las consultas remotas autorizadas fueron únicamente de lectura. El test funcional de órdenes sigue pendiente.
+Los tests de integración de órdenes aplican las migraciones pendientes sobre `cocos_test` antes de preparar sus fixtures. Nunca deben ejecutarse contra la base remota ni contra una base local que no termine en `_test`.

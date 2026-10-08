@@ -1,9 +1,11 @@
 import { Body, Controller, Inject, Post, UseFilters } from '@nestjs/common';
 import {
   ApiBadRequestResponse,
+  ApiConflictResponse,
   ApiCreatedResponse,
   ApiExtraModels,
   ApiInternalServerErrorResponse,
+  ApiHeader,
   ApiNotFoundResponse,
   ApiOperation,
   ApiTags,
@@ -12,7 +14,7 @@ import {
 } from '@nestjs/swagger';
 import { ProblemDetailsDto } from '#src/shared/infrastructure/http/problem-details.dto.js';
 import { Money } from '#src/shared/domain/money/money.js';
-import type { SubmitOrderInput } from '#src/orders/application/interfaces/submit-order-input.js';
+import type { OrderRequest } from '#src/orders/application/interfaces/order-request.js';
 import { SubmitOrder } from '#src/orders/application/usecases/submit-order.js';
 import { CreateOrderDto } from '#src/orders/infrastructure/http/dto/create-order.dto.js';
 import { OrderResponseDto } from '#src/orders/infrastructure/http/dto/order-response.dto.js';
@@ -24,7 +26,7 @@ const problemContent = {
   },
 };
 
-function toSubmitOrderInput(body: CreateOrderDto): SubmitOrderInput {
+function toOrderRequest(body: CreateOrderDto): OrderRequest {
   return {
     userId: body.userId,
     instrumentId: body.instrumentId,
@@ -49,13 +51,27 @@ export class OrdersController {
     description:
       'Submit a BUY or SELL order. Specify exact size or total amount in ARS. For LIMIT orders, a positive price must be specified. For MARKET orders, the latest close price is used.',
   })
+  @ApiHeader({
+    name: 'Idempotency-Key',
+    required: true,
+    description:
+      'Required UUID v4. Reusing it for the same user and normalized request returns the original order.',
+    schema: { type: 'string', format: 'uuid' },
+    example: '550e8400-e29b-41d4-a716-446655440000',
+  })
   @ApiCreatedResponse({
     description:
       'Order successfully processed and persisted (status FILLED, NEW, or REJECTED)',
     type: OrderResponseDto,
   })
   @ApiBadRequestResponse({
-    description: 'Invalid input parameters or exclusivity constraints violated',
+    description:
+      'Missing or non-UUID-v4 Idempotency-Key, invalid input parameters, or exclusivity constraints violated',
+    content: problemContent,
+  })
+  @ApiConflictResponse({
+    description:
+      'The idempotency key was already used by this user with a different order request',
     content: problemContent,
   })
   @ApiUnprocessableEntityResponse({
@@ -68,11 +84,18 @@ export class OrdersController {
     content: problemContent,
   })
   @ApiInternalServerErrorResponse({
-    description: 'Market data unavailable or unexpected failure',
+    description:
+      'Market data unavailable or unexpected failure. Idempotency-Outcome: finalized identifies a committed, replayable failure; without it the result may be uncertain.',
+    headers: {
+      'Idempotency-Outcome': {
+        description: 'finalized when the failure was committed for this key',
+        schema: { type: 'string', enum: ['finalized'] },
+      },
+    },
     content: problemContent,
   })
   async submit(@Body() body: CreateOrderDto): Promise<OrderResponseDto> {
-    const order = await this.submitOrder.execute(toSubmitOrderInput(body));
+    const order = await this.submitOrder.execute(toOrderRequest(body));
 
     return { data: order };
   }

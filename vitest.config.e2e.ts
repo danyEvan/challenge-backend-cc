@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 const databaseUrl =
@@ -23,7 +24,9 @@ if (
 }
 
 export default defineConfig({
-  resolve: { tsconfigPaths: true },
+  resolve: {
+    alias: { '#src': fileURLToPath(new URL('./src', import.meta.url)) },
+  },
   test: {
     globals: true,
     root: './',

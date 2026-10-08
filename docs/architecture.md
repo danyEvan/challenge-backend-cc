@@ -2,9 +2,11 @@
 
 ## Enfoque
 
-Monolito modular con arquitectura hexagonal liviana. El dominio es independiente de NestJS y TypeORM; cada funcionalidad reúne sus casos de uso y adaptadores.
+Monolito modular con arquitectura hexagonal liviana. El dominio es independiente de NestJS y TypeORM. Cada funcionalidad reúne sus casos de uso y adaptadores.
 
 El [README](../README.md) identifica las funcionalidades implementadas y pendientes. Los criterios financieros están en [supuestos y decisiones funcionales](assumptions.md).
+
+Los recorridos completos se representan en los [diagramas de casos de uso y secuencia](diagrams/README.md).
 
 | Parte           | Responsabilidad                                                     |
 | --------------- | ------------------------------------------------------------------- |
@@ -20,7 +22,7 @@ Caso de uso → puerto TradingRepository
 
 `TradingRepository` es una clase abstracta y un token de inyección. `TradingTypeOrmRepository` transforma resultados de TypeORM en modelos independientes del ORM.
 
-La búsqueda usa su puerto propio `InstrumentSearchRepository`: controller HTTP → `SearchInstruments` → puerto → `InstrumentSearchTypeOrmRepository`. El módulo Nest construye el caso de uso mediante una factory; la aplicación conserva independencia del framework. Dentro de `instruments`, `InstrumentSearchItem`, `InstrumentSearchCriteria` e `InstrumentSearchPage` son contratos del caso de uso y se ubican en `application/interfaces/`. No se crea un modelo de dominio para una consulta sin reglas propias.
+La búsqueda usa su puerto propio `InstrumentSearchRepository`: controller HTTP → `SearchInstruments` → puerto → `InstrumentSearchTypeOrmRepository`. El módulo Nest construye el caso de uso mediante una factory. La aplicación conserva independencia del framework. Dentro de `instruments`, `InstrumentSearchItem`, `InstrumentSearchCriteria` e `InstrumentSearchPage` son contratos del caso de uso y se ubican en `application/interfaces/`. No se crea un modelo de dominio para una consulta sin reglas propias.
 
 Los DTOs están en `infrastructure/http/dto/`, el controller en `infrastructure/http/controllers/`, las transformaciones HTTP en `infrastructure/http/transforms/` y el adaptador en `infrastructure/persistence/`. El puerto abstracto de lectura queda en `application/ports/`: expresa la dependencia del caso de uso y también funciona como token de inyección en runtime.
 
@@ -57,17 +59,17 @@ src/<feature>/
   <feature>.module.ts         # conexión de providers, puertos y controllers
 ```
 
-El controller recibe y devuelve DTOs HTTP; el caso de uso trabaja con contratos sin decoradores ni dependencias del framework. Los puertos pertenecen a aplicación porque expresan qué necesita el caso de uso; el módulo Nest conecta cada puerto con su adaptador. `domain/` se reserva para reglas, entidades y valores propios del negocio: una feature sin lógica de dominio puede no usarlo. Las entidades TypeORM compartidas permanecen en `shared/infrastructure/persistence/entities/`. Crear subcarpetas opcionales solo cuando contengan código; cada contrato, DTO, caso de uso y adaptador tiene su propio archivo.
+El controller recibe y devuelve DTOs HTTP. El caso de uso trabaja con contratos sin decoradores ni dependencias del framework. Los puertos pertenecen a aplicación porque expresan qué necesita el caso de uso. El módulo Nest conecta cada puerto con su adaptador. `domain/` se reserva para reglas, entidades y valores propios del negocio, por lo que una feature sin lógica de dominio puede no usarlo. Las entidades TypeORM compartidas permanecen en `shared/infrastructure/persistence/entities/`. Las subcarpetas opcionales se crean solo cuando contienen código. Cada contrato, DTO, caso de uso y adaptador tiene su propio archivo.
 
-Todas las pruebas viven bajo `test/`: `unit/` contiene funciones o clases aisladas, `feature/` levanta módulos Nest con puertos simulados e `integration/` recorre HTTP e infraestructura real. Los imports internos usan `#src/*`; TypeScript y Vitest lo resuelven hacia `src`, mientras que el mapa nativo de `package.json` lo dirige a `dist` al ejecutar el build. Los imports locales dentro de una misma carpeta conservan `./`.
+Todas las pruebas viven bajo `test/`. `unit/` contiene funciones o clases aisladas, `feature/` levanta módulos Nest con puertos simulados e `integration/` recorre HTTP e infraestructura real. Los imports internos usan `#src/*`. TypeScript usa `paths` y Vitest un alias explícito hacia `src`, mientras que el mapa nativo de `package.json` lo dirige a `dist` al ejecutar el build. Los imports locales dentro de una misma carpeta conservan `./`.
 
-Los contratos de persistencia usan una clase abstracta `<Nombre>Repository` en `application/ports/<nombre>.repository.ts`, sin dependencias de NestJS ni TypeORM. Su implementación se llama `<Nombre>TypeOrmRepository` y vive en `infrastructure/persistence/<nombre>-typeorm.repository.ts`. El módulo Nest registra el contrato con `provide` y la implementación con `useClass` o `useFactory`. La clase abstracta sirve como tipo y como token de inyección; no requiere un token adicional. Cada contrato declara únicamente las operaciones necesarias para sus consumidores, sin agregar un repositorio genérico ni métodos CRUD sin uso.
+Los contratos de persistencia usan una clase abstracta `<Nombre>Repository` en `application/ports/<nombre>.repository.ts`, sin dependencias de NestJS ni TypeORM. Su implementación se llama `<Nombre>TypeOrmRepository` y vive en `infrastructure/persistence/<nombre>-typeorm.repository.ts`. El módulo Nest registra el contrato con `provide` y la implementación con `useClass` o `useFactory`. La clase abstracta sirve como tipo y como token de inyección, por lo que no requiere un token adicional. Cada contrato declara únicamente las operaciones necesarias para sus consumidores, sin agregar un repositorio genérico ni métodos CRUD sin uso.
 
-El dominio compartido implementa dinero y reconstrucción de recursos. `portfolio/domain/` agrega promedio ponderado móvil, valuación y rendimiento. `orders/domain/` implementa `evaluateOrder`, que calcula el precio aplicable, valida límites, convierte montos a acciones enteras y determina disponibilidad de fondos o tenencias para asignar el estado (`FILLED`, `NEW` o `REJECTED`). `instruments` es una consulta sin reglas de dominio propias. Su adaptador incluye únicamente `ACCIONES`; las transferencias de `MONEDA` aportan efectivo.
+El dominio compartido implementa dinero y reconstrucción de recursos. `portfolio/domain/` agrega promedio ponderado móvil, valuación y rendimiento. `orders/domain/` implementa `evaluateOrder`, que calcula el precio aplicable, valida límites, convierte montos a acciones enteras y determina disponibilidad de fondos o tenencias para asignar el estado (`FILLED`, `NEW` o `REJECTED`). `instruments` es una consulta sin reglas de dominio propias. Su adaptador incluye únicamente `ACCIONES`. Las transferencias de `MONEDA` aportan efectivo.
 
-El cálculo de portfolio separa la reconstrucción cronológica del costo y la valuación con cotizaciones. Rendimiento y variación diaria reutilizan la misma fórmula porcentual, con bases distintas; los helpers permanecen privados al cálculo, sin agregar capas.
+El cálculo de portfolio separa la reconstrucción cronológica del costo y la valuación con cotizaciones. Rendimiento y variación diaria reutilizan la misma fórmula porcentual, con bases distintas. Los helpers permanecen privados al cálculo, sin agregar capas.
 
-Las excepciones de negocio extienden `Error`, sin dependencias HTTP. `InvalidAccountHistoryError` es compartida; portfolio y orders definen sus propias excepciones (`UserNotFoundError`, `InvalidOrderError`, `MarketDataUnavailableError`). Filtros propios de cada feature las traducen mediante `ApiProblemException` y reutilizan el filtro compartido para publicar únicamente detalles seguros. Los fallos inesperados permanecen sanitizados. El rechazo financiero de una orden se persiste como `REJECTED` (respondiendo `201`), separado de un error de solicitud o fallo técnico.
+Las excepciones de negocio extienden `Error`, sin dependencias HTTP. `InvalidAccountHistoryError` es compartida. Portfolio y orders definen sus propias excepciones (`UserNotFoundError`, `InvalidOrderError`, `MarketDataUnavailableError`). Filtros propios de cada feature las traducen mediante `ApiProblemException` y reutilizan el filtro compartido para publicar únicamente detalles seguros. Los fallos inesperados permanecen sanitizados. El rechazo financiero de una orden se persiste como `REJECTED` (respondiendo `201`), separado de un error de solicitud o fallo técnico.
 
 ## Límites entre módulos
 
@@ -80,20 +82,24 @@ Las excepciones de negocio extienden `Error`, sin dependencias HTTP. `InvalidAcc
 
 Compartir la reconstrucción de recursos mantiene una interpretación común del historial. Los DTOs HTTP y casos de uso pertenecen a su feature.
 
-Las cuatro entidades TypeORM mapean una base utilizada por varias funcionalidades y están centralizadas para reducir duplicación. Sus detalles permanecen en infraestructura.
+Las cuatro entidades TypeORM del esquema provisto y la entidad genérica de idempotencia están centralizadas en infraestructura compartida. Sus detalles no llegan al dominio ni a los casos de uso.
 
-`UserRepository`, en `shared/application/ports/`, declara la lectura `exists(userId)` y `UserTypeOrmRepository`, en infraestructura compartida, consulta `UserEntity`. `PortfolioModule` registra ese adaptador mediante una factory. `GetPortfolio` coordina la consulta y decide cómo tratar la ausencia del usuario; `PortfolioRepository` obtiene el snapshot financiero. `TradingRepository` se limita a movimientos y cotizaciones.
+`UserRepository`, en `shared/application/ports/`, declara la lectura `exists(userId)` y `UserTypeOrmRepository`, en infraestructura compartida, consulta `UserEntity`. `PortfolioModule` registra ese adaptador mediante una factory. `GetPortfolio` coordina la consulta y decide cómo tratar la ausencia del usuario. `PortfolioRepository` obtiene el snapshot financiero. `TradingRepository` se limita a movimientos y cotizaciones.
 
 ## Consistencia y concurrencia
 
 La estrategia para órdenes es una transacción `READ COMMITTED` con bloqueo pesimista de la fila del usuario (`pessimistic_write` / `FOR UPDATE`) antes de validar disponibilidad. El lock serializa las órdenes de una cuenta y cada lectura posterior incorpora el último commit, incluida una orden que hubiera esperado el mismo bloqueo. Las lecturas de instrumento, cotización y movimientos ejecutados, la evaluación de dominio y la escritura usan el mismo `EntityManager`. Si los recursos son insuficientes, el rechazo financiero se confirma como `REJECTED`.
 
+`IdempotencyKeyMiddleware` exige un UUID v4 en `Idempotency-Key` para `POST /orders` y lo guarda en `IdempotencyKeyContext`, respaldado por `AsyncLocalStorage`. El controller y el caso de uso no reciben la clave. El adaptador transaccional la obtiene del contexto y reclama una fila en `idempotency_records`. Su restricción única abarca operación, alcance y clave. El hash representa la solicitud normalizada. Una clave nueva guarda resultado y código HTTP. La misma clave y hash los recupera, mientras que otro hash produce conflicto. La ejecución de la orden se aísla con un savepoint. Si falla técnicamente, se descartan sus escrituras y se confirma `500` con la clave. Si no es posible confirmar ese registro, la transacción se revierte y el resultado queda incierto para el cliente.
+
 El bloqueo por usuario serializa las operaciones de una misma cuenta, impidiendo sobregiros o doble gasto concurrente, al tiempo que permite que cuentas distintas avancen independientemente sin bloquearse entre sí. Portfolio usa su propia transacción `REPEATABLE READ`, con `SET TRANSACTION READ ONLY` antes de leer.
 
 `GetPortfolio` consulta existencia mediante `UserRepository` y decide si lanzar `UserNotFoundError` antes de solicitar el snapshot. En `orders`, la existencia se valida de forma atómica dentro de la transacción al intentar adquirir el bloqueo de la fila del usuario en `users`.
 
-El caso de uso `SubmitOrder` no depende de TypeORM ni expone managers. Delega la operación atómica al puerto específico `OrderRepository` y presenta el resultado persistido como strings decimales y fecha ISO. `OrderTypeOrmRepository` ejecuta la transacción y llama a la función pura `evaluateOrder` después de obtener el estado bloqueado de la cuenta. El controller transforma el DTO en `SubmitOrderInput` y devuelve `{ data }` mediante `OrderResponseDto`.
+El caso de uso `SubmitOrder` no depende de TypeORM ni expone managers. Recibe únicamente `OrderRequest`, delega la operación atómica al puerto específico `OrderRepository` y presenta el resultado persistido como strings decimales y fecha ISO. `OrderTypeOrmRepository` coordina transacción, lock e idempotencia. `persistEvaluatedOrder` lee, llama a la función pura `evaluateOrder` y persiste con el mismo manager. El controller transforma el DTO en `OrderRequest` y devuelve `{ data }` mediante `OrderResponseDto`.
+
+`IdempotencyTypeOrmRepository` es una capacidad compartida de persistencia que reclama claves y guarda código HTTP y resultado JSON usando el manager recibido. El adaptador de órdenes define el alcance, calcula el hash y reconstruye el resultado. Así el esquema compartido no depende de `orders`. Middleware y contexto resuelven la preocupación HTTP transversal, mientras el adaptador conserva la atomicidad con la orden. `REJECTED` se confirma con `201`. Un fallo técnico confirmado se guarda con `500` sin orden.
 
 ## Performance
 
-Los candidatos de índices y cambios de esquema se mantienen en la [guía de PostgreSQL](../database/README.md). Las [evidencias](evidence/README.md) registrarán su evaluación y sus límites.
+Las lecturas financieras seleccionan las columnas necesarias y obtienen instrumentos y cotizaciones en lote. Con el volumen actual, los índices adicionales evaluados no mejoraron los planes de órdenes y cotizaciones. La decisión y sus límites están en [supuestos y decisiones](assumptions.md#índices-de-órdenes-y-cotizaciones).

@@ -73,8 +73,10 @@ export class PortfolioController {
 
     for (const position of data.positions) {
       if (position.quantity < 0) {
+        // Se agrega tag para observabilidad y alertas.
+        // (suponiendo que no es un producto que lo permita, ej: Short Selling)
         this.logger.warn(
-          `User ${params.userId} has negative position on instrument ${position.instrumentId}: ${position.quantity} shares`,
+          `[portfolio.negative_position] User ${params.userId} has negative position on instrument ${position.instrumentId}: ${position.quantity} shares`,
         );
       }
     }

@@ -1,62 +1,82 @@
 # Supuestos y decisiones
 
-Este documento reúne los criterios funcionales y las decisiones técnicas relevantes para el alcance actual. Las reglas explícitas del challenge se conservan; las decisiones pendientes se indican al final.
+Este documento registra las decisiones tomadas donde el challenge deja margen de interpretación. El [contrato HTTP](api/README.md) contiene parámetros, respuestas y errores. La [arquitectura](architecture.md) explica implementación, transacciones y concurrencia.
 
 ## Disponibilidad y órdenes
 
-Reglas del alcance: admitir `BUY`/`SELL`; MARKET usa el último `close` y se guarda `FILLED`; LIMIT exige precio y se guarda `NEW`. Validar disponibilidad antes de aceptar ambas. La solicitud proporciona cantidad entera positiva o monto positivo en ARS; se exige exactamente uno de los dos. Si se agrega cancelación, solo se permite para `NEW`.
+| Tema                   | Decisión                                                                                            | Motivo                                                                     |
+| ---------------------- | --------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Historial              | Solo los movimientos `FILLED` modifican efectivo y tenencias.                                       | El estado confirma si el movimiento ocurrió, independientemente del tipo.  |
+| Instrumentos           | `BUY` y `SELL` se permiten únicamente sobre `ACCIONES`.                                             | `MONEDA` representa efectivo y no es un activo negociable.                 |
+| MARKET                 | Usa el último `close` disponible y no acepta un precio enviado.                                     | El challenge no exige cotización en tiempo real ni simulación del mercado. |
+| LIMIT                  | Exige precio, queda `NEW` y no reserva recursos.                                                    | No se implementa ejecución futura ni administración de reservas.           |
+| Orden por monto        | La cantidad es `floor(monto / precio)`. Un resultado de cero acciones es inválido y no se persiste. | No se admiten fracciones y tampoco existe una orden ejecutable de cero.    |
+| Precisión              | Monto y precio se reciben como strings con hasta dos decimales.                                     | Evita pérdida de precisión antes de convertirlos a valores monetarios.     |
+| Recursos insuficientes | Una solicitud válida se guarda como `REJECTED`.                                                     | El rechazo financiero forma parte del historial de órdenes.                |
+| Historial anómalo      | Los saldos negativos existentes se conservan, pero una nueva venta no puede superar la tenencia.    | Corregir el seed ocultaría sus inconsistencias.                            |
 
-| Tema                | Criterio elegido                                                                                              | Motivo                                                                                                             |
-| ------------------- | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| Historial           | Solo `FILLED` afecta efectivo y cantidades, incluidas las LIMIT históricas ejecutadas.                        | El tipo de orden no determina si el movimiento ocurrió.                                                            |
-| Reservas            | `NEW` no reserva efectivo ni acciones.                                                                        | Se reconstruyen recursos ejecutados; no se incorpora un sistema de reservas ni ejecución futura al alcance actual. |
-| Cotización MARKET   | Usar el último `close` disponible por instrumento, sin exigir la fecha actual.                                | El dataset contiene cotizaciones históricas.                                                                       |
-| Orden por monto     | Calcular cantidad entera con `floor(monto / precio aplicable)`, sin superar el monto enviado.                 | Las acciones se operan en unidades enteras.                                                                        |
-| Importes de entrada | Recibir monto y precio como strings positivos, con hasta dos decimales y dentro de `NUMERIC(10,2)`.           | Evita pérdida de precisión y diferencias entre la evaluación y el valor persistido.                                |
-| Rechazo financiero  | Persistir `REJECTED` cuando una solicitud válida excede efectivo o tenencia.                                  | El rechazo forma parte del historial; su registro debe confirmarse.                                                |
-| Historial anómalo   | Conservar saldos y cantidades negativas heredadas. Impedir nuevas ventas superiores a la tenencia disponible. | Alterar el historial ocultaría inconsistencias del dataset.                                                        |
+El cliente solo puede enviar `BUY` o `SELL` y no puede elegir `status`. La evaluación asigna `FILLED`, `NEW` o `REJECTED`, por lo que `POST /orders` no permite introducir estados arbitrarios.
 
-La política sin reservas permite que varias LIMIT `NEW` superen, en conjunto, los recursos actuales. Si se incorporara su ejecución futura, habría que definir reservas o revalidar disponibilidad al ejecutar.
+Como consecuencia de no reservar recursos, varias órdenes `LIMIT` en estado `NEW` pueden superar en conjunto la disponibilidad actual. Una ejecución futura deberá incorporar reservas o volver a validar los recursos.
 
-Antes de evaluar recursos, órdenes valida que el instrumento exista y tenga tipo `ACCIONES`. `MONEDA`, tipos nulos y desconocidos no admiten `BUY`/`SELL`.
+La cancelación no forma parte de los tres endpoints solicitados. Si se incorpora, la única transición válida será `NEW → CANCELLED`. Los demás estados serán terminales. No se agregó una máquina de estados sin un caso de uso que la necesite.
 
-La creación de órdenes, sus validaciones, el cálculo por monto/cantidad, la persistencia de rechazos y el contrato HTTP `POST /orders` están implementados.
+### Idempotencia
+
+Aunque el challenge no la exige, `POST /orders` requiere un UUID v4 en `Idempotency-Key` para que un reintento no duplique una operación financiera.
+
+| Situación                               | Resultado                                                                            |
+| --------------------------------------- | ------------------------------------------------------------------------------------ |
+| Misma clave, usuario y payload          | Devuelve el resultado original sin crear otra orden.                                 |
+| Misma clave y usuario, payload distinto | Devuelve `409 IDEMPOTENCY_CONFLICT`.                                                 |
+| Orden `REJECTED`                        | Se confirma y se reproduce como cualquier otro resultado de negocio.                 |
+| Fallo técnico confirmado                | Guarda un `500` seguro sin orden e informa `Idempotency-Outcome: finalized`.         |
+| Commit incierto                         | No promete un resultado guardado. El cliente reintenta con la misma clave y payload. |
+
+PostgreSQL es la fuente de verdad y resuelve también solicitudes concurrentes. Cada resultado se confirma con su clave y, cuando corresponde, con la orden en una misma transacción. No hay expiración automática porque el challenge no define una política de retención. El comportamiento HTTP completo está en la sección de [idempotencia del contrato](api/README.md#idempotencia-obligatoria).
 
 ## Catálogo de instrumentos
 
-`GET /instruments` expone únicamente activos negociables de tipo `ACCIONES`. El registro `ARS` de tipo `MONEDA` representa el efectivo usado para reconstruir la cuenta y el portfolio; no puede enviarse en órdenes `BUY`/`SELL` y no forma parte del catálogo público.
-
-Los instrumentos con tipo nulo o desconocido tampoco se presentan como negociables. Incorporar un nuevo tipo al catálogo requiere decidir explícitamente que admite órdenes y agregarlo al contrato, en lugar de exponerlo automáticamente por existir en la tabla.
+`GET /instruments` devuelve únicamente `ACCIONES`. `ARS`, de tipo `MONEDA`, representa el efectivo de la cuenta. Los tipos nulos o desconocidos también se excluyen hasta que exista una decisión explícita sobre cómo operarlos.
 
 ### Búsqueda e índices
 
-Se revisó la extensión [`pg_trgm`](https://www.postgresql.org/docs/17/pgtrgm.html#PGTRGM-INDEX) como alternativa para acelerar búsquedas por subcadena. Permite crear índices compatibles con consultas `ILIKE '%texto%'` sobre ticker y nombre.
+No se agregó `pg_trgm` ni un índice para la búsqueda por subcadena. El seed contiene 66 instrumentos y no se midió un beneficio que justifique sumar esa extensión. Si el catálogo crece o aparecen demoras, corresponde comparar alternativas con datos representativos y `EXPLAIN (ANALYZE, BUFFERS)`.
 
-Por ahora se mantiene la consulta sin agregar esa extensión ni índices de búsqueda. El SQL provisto contiene 66 instrumentos y no hay mediciones que justifiquen esos cambios para el catálogo actual. Esta es una decisión de alcance; no se hizo una comparación de rendimiento con y sin índices.
+### Índices de órdenes y cotizaciones
 
-Si aumenta el volumen o aparecen demoras, se revisará el plan con `EXPLAIN (ANALYZE, BUFFERS)` y se compararán alternativas con datos representativos antes de incorporar una migración.
+Se probaron índices B-tree para los movimientos `FILLED` de un usuario y para la última cotización por instrumento. La base evaluada tenía 11 órdenes, 126 cotizaciones y 66 instrumentos.
+
+| Consulta             | Plan antes y después           | Antes    | Después  |
+| -------------------- | ------------------------------ | -------- | -------- |
+| Órdenes ejecutadas   | `Seq Scan` + `Sort`            | 0,064 ms | 0,071 ms |
+| Últimas cotizaciones | `Seq Scan` + `Sort` + `Unique` | 0,074 ms | 0,101 ms |
+
+PostgreSQL no utilizó los índices y cada medición corresponde a una sola ejecución. Estos valores no permiten afirmar una mejora ni una regresión. Se retiró la migración porque el volumen actual no compensa el costo adicional de escritura y almacenamiento. La restricción única de idempotencia sí se conserva porque garantiza corrección, no performance.
+
+Esta decisión debe revisarse si crecen el historial por usuario o las cotizaciones por instrumento.
 
 ## Portfolio
 
-| Tema                  | Criterio elegido                                                                                                                                                                                      |
-| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Efectivo y cantidades | Reconstruirlos desde movimientos ejecutados. `CASH_IN` y `CASH_OUT` usan `size` como pesos.                                                                                                           |
-| Valor total           | Efectivo más la suma de cantidad por último `close` de cada posición.                                                                                                                                 |
-| Costo de posición     | Promedio ponderado móvil: compras incorporan costo; ventas parciales lo reducen al promedio vigente; una posición válida cerrada reinicia el costo. Recorrer por `datetime`, con `id` como desempate. |
-| Rendimiento           | `(valor actual − costo restante) / costo restante × 100`. Describe la posición abierta; no incluye la ganancia realizada de ventas previas.                                                           |
-| Costo inválido        | Una sobreventa invalida costo y rendimiento (`null`), incluso si compras posteriores vuelven a dejar cantidad positiva. Un costo conocido de cero se informa como `"0.00"`, con rendimiento `null`.   |
-| Datos insuficientes   | Informar explícitamente la falta de cotización o de datos necesarios. No reemplazarlos por cero ni presentar una valuación incompleta como total válido.                                              |
+| Tema                | Decisión                                                                                                              |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Recursos            | Efectivo y cantidades se reconstruyen con movimientos `FILLED`. `CASH_IN` y `CASH_OUT` usan `size` como pesos.        |
+| Valor total         | Es el efectivo más el valor de cada posición al último `close` disponible.                                            |
+| Costo               | Se usa promedio ponderado móvil, procesando por `datetime` e `id`.                                                    |
+| Rendimiento         | Mide solo la posición abierta: `(valor actual − costo restante) / costo restante × 100`.                              |
+| Sobreventa          | Invalida costo y rendimiento, que se informan como `null`, aunque compras posteriores reviertan la cantidad negativa. |
+| Datos insuficientes | No se reemplazan por cero ni se devuelve una valuación parcial como total válido.                                     |
 
-Portfolio está implementado en `GET /users/:userId/portfolio`, sin paginación y solo en ARS. Incluye `dailyPriceChangePercentage` para distinguir la variación diaria del precio del rendimiento sobre el costo. Si `previousClose` falta o no es positivo, ese indicador es `null`. Importes y porcentajes son strings de dos decimales, redondeados solo al presentar.
+El cambio diario de precio se calcula aparte con `close` y `previousClose`. Si el precio anterior falta o no es positivo, el porcentaje es `null`. Los importes y porcentajes se presentan como strings de dos decimales y se redondean solo al responder.
 
-Los datos provistos contienen una venta ejecutada de BMA superior a la compra previa (usuario 1: −10 acciones). Se conserva el dato, su valor con signo y un warning interno, sin cambios de esquema, correcciones ni campos de anomalías en la respuesta. No se supone que sea una venta en corto autorizada. El futuro endpoint de órdenes deberá persistir `REJECTED` ante una venta que exceda la tenencia, como exige el challenge.
+El seed contiene una venta ejecutada de BMA que deja al usuario 1 con −10 acciones. Se conserva la cantidad y su valor con signo, sin corregir datos ni asumir soporte de ventas en corto. Las órdenes nuevas impiden repetir esa anomalía.
 
-Un usuario inexistente produce `404`; uno existente sin movimientos, un portfolio vacío. Un historial ejecutado inválido produce `500 INVALID_ACCOUNT_HISTORY`. La ausencia de datos necesarios para valuar posiciones abiertas produce `500 PORTFOLIO_DATA_UNAVAILABLE`: no es un error de la solicitud ni se devuelve un total incompleto.
+## Fuera de alcance
 
-## Alcance y decisiones pendientes
+- Autenticación de usuarios.
+- Simulación, ejecución o cancelación posterior de órdenes `LIMIT`.
+- Reservas de efectivo o tenencias para órdenes `NEW`.
+- Corrección del historial provisto o soporte de ventas en corto.
+- Cotizaciones en tiempo real.
 
-- Los tres endpoints no requieren autenticación ni simulación del mercado. Cancelación e idempotencia son ampliaciones opcionales.
-- Búsqueda, portfolio y órdenes están completamente implementados y documentados en el [contrato HTTP](api/README.md).
-- Decisión cerrada: órdenes `MARKET` no aceptan precio enviado (usan el último `close`), y montos que deriven en cero acciones enteras (`floor`) son solicitudes inválidas rechazadas con `422` sin persistencia.
-
-La [arquitectura](architecture.md) describe los límites entre módulos y la estrategia de consistencia. La [guía de PostgreSQL](../database/README.md) documenta las particularidades del dataset.
+Los tres endpoints implementados y sus validaciones están documentados en el [contrato HTTP](api/README.md). Las particularidades del seed y las migraciones están en la [guía de PostgreSQL](../database/README.md).

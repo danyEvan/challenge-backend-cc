@@ -1,12 +1,12 @@
 # Contrato HTTP
 
-Swagger está disponible en `/api/docs`. El archivo [REST Client](cocos-capital.http) contiene las solicitudes para probar la API y utiliza el puerto local predeterminado. Los [pasos de preparación](../../README.md#ejecutar-el-proyecto) y [uso de la API](../../README.md#probar-la-api) se mantienen en el README central. Búsqueda, portfolio y health están implementados. Órdenes sigue pendiente.
+Swagger está disponible en `/api/docs`. El archivo [REST Client](cocos-capital.http) contiene las solicitudes para probar la API y utiliza el puerto local predeterminado. Los [pasos de preparación](../../README.md#evaluación-rápida) y [uso de la API](../../README.md#probar-la-api) se mantienen en el README central. Los tres endpoints, health y la idempotencia obligatoria de órdenes están implementados.
 
 ## Buscar instrumentos
 
 `GET /instruments`
 
-Busca una subcadena en ticker **o** nombre, sin distinguir mayúsculas. Devuelve únicamente activos negociables de tipo `ACCIONES`. El registro `ARS` de tipo `MONEDA` representa efectivo interno y se excluye del catálogo; también se excluyen tipos nulos o desconocidos.
+Busca una subcadena en ticker **o** nombre, sin distinguir mayúsculas. Devuelve únicamente activos negociables de tipo `ACCIONES`. El registro `ARS` de tipo `MONEDA` representa efectivo interno y se excluye del catálogo. Los tipos nulos o desconocidos también quedan afuera.
 
 | Parámetro | Regla                                                                                                                                    | Predeterminado |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
@@ -16,11 +16,11 @@ Busca una subcadena en ticker **o** nombre, sin distinguir mayúsculas. Devuelve
 
 No se admiten parámetros desconocidos ni repetidos. Los parámetros numéricos vacíos, fraccionarios, negativos o expresados como hexadecimal o notación científica producen `400`.
 
-La consulta es parametrizada. `%`, `_`, `!` y `\` se buscan como texto literal; no permiten ampliar la búsqueda mediante comodines SQL. No hay búsqueda aproximada por distancia ni normalización de acentos.
+La consulta es parametrizada. `%`, `_`, `!` y `\` se buscan como texto literal y no permiten ampliar la búsqueda mediante comodines SQL. No hay búsqueda aproximada por distancia ni normalización de acentos.
 
 El carácter nulo (`U+0000`, por ejemplo `search=%00`) no es válido en texto de PostgreSQL y se rechaza con `400` antes de consultar la base.
 
-Los resultados se ordenan por `ticker ASC NULLS LAST` e `id ASC` como desempate. La página contiene como máximo `limit` elementos; no calcula un conteo total. Sin coincidencias o con un offset posterior al resultado devuelve `200` con `data: []` y los parámetros en `meta`.
+Los resultados se ordenan por `ticker ASC NULLS LAST` e `id ASC` como desempate. La página contiene como máximo `limit` elementos y no calcula un conteo total. Sin coincidencias o con un offset posterior al resultado devuelve `200` con `data: []` y los parámetros en `meta`.
 
 ### Respuesta
 
@@ -43,33 +43,33 @@ Los resultados se ordenan por `ticker ASC NULLS LAST` e `id ASC` como desempate.
 }
 ```
 
-El formato de éxito de negocio es `{ data, meta }` para listados paginados y `{ data }` para recursos individuales. El controller traduce el resultado interno del caso de uso a ese DTO HTTP. Cada elemento de `data` expone únicamente `id`, `ticker`, `name` y `type`. `ticker` y `name` admiten `null`, como en el SQL provisto; `type` siempre es `ACCIONES` por la política de operabilidad. No se reemplazan datos ausentes ni se omite un activo negociable que coincida por el otro campo.
+El formato de éxito de negocio es `{ data, meta }` para listados paginados y `{ data }` para recursos individuales. El controller traduce el resultado interno del caso de uso a ese DTO HTTP. Cada elemento de `data` expone únicamente `id`, `ticker`, `name` y `type`. `ticker` y `name` admiten `null`, como en el SQL provisto. `type` siempre es `ACCIONES` por la política de operabilidad. No se reemplazan datos ausentes ni se omite un activo negociable que coincida por el otro campo.
 
-El envoltorio `data/meta` es una convención de este proyecto; no implica cumplimiento de JSON:API. `meta.limit` indica el máximo de elementos por página, no la cantidad devuelta; `meta.offset` indica cuántos resultados se omiten. No se incluyen total, cantidad de páginas ni indicador de página siguiente.
+El envoltorio `data/meta` es una convención de este proyecto y no implica cumplimiento de JSON:API. `meta.limit` indica el máximo de elementos por página, no la cantidad devuelta. `meta.offset` indica cuántos resultados se omiten. No se incluyen total, cantidad de páginas ni indicador de página siguiente.
 
 ## Consultar portfolio
 
 `GET /users/:userId/portfolio`
 
-`userId` debe escribirse con dígitos decimales y estar entre 1 y 2147483647. No admite query parameters ni paginación: el total y las posiciones describen la cuenta completa. La ruta identifica al dueño; el endpoint pertenece a `PortfolioModule`, sin requerir un módulo de usuarios.
+`userId` debe escribirse con dígitos decimales y estar entre 1 y 2147483647. No admite query parameters ni paginación porque el total y las posiciones describen la cuenta completa. La ruta identifica al dueño. El endpoint pertenece a `PortfolioModule`, sin requerir un módulo de usuarios.
 
-La respuesta es `{ data: { userId, currency, totalValue, availableCash, positions } }`. `currency` es `ARS`; las transferencias aportan efectivo, no una posición adicional de moneda. Solo movimientos `FILLED` afectan el cálculo. Las posiciones de cantidad cero se omiten y las restantes se ordenan por ticker/id, con ticker nulo al final.
+La respuesta es `{ data: { userId, currency, totalValue, availableCash, positions } }`. `currency` es `ARS`. Las transferencias aportan efectivo, no una posición adicional de moneda. Solo movimientos `FILLED` afectan el cálculo. Las posiciones de cantidad cero se omiten y las restantes se ordenan por ticker/id, con ticker nulo al final.
 
 Cada posición contiene:
 
-| Campo                        | Tipo / significado                                                                                                                                                 |
-| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `instrumentId`               | Entero.                                                                                                                                                            |
-| `ticker`, `name`             | String o `null`, sin reemplazar datos ausentes.                                                                                                                    |
-| `quantity`                   | Entero con signo, reconstruido del historial.                                                                                                                      |
-| `marketPrice`                | Último `close` disponible.                                                                                                                                         |
-| `marketValue`                | Cantidad × precio, conservando el signo.                                                                                                                           |
-| `costBasis`                  | Costo restante por promedio ponderado móvil; `null` si hubo sobreventa.                                                                                            |
-| `returnPercentage`           | `(valor − costo) / costo × 100`; `null` si el costo es cero o no reconstruible. No incluye ganancias realizadas.                                                   |
-| `dailyPriceChangePercentage` | `(close − previousClose) / previousClose × 100`; `null` si el precio anterior falta o no es positivo. Es variación del precio, no rendimiento diario de la cuenta. |
-| `quoteDate`                  | Fecha `YYYY-MM-DD` de la cotización utilizada.                                                                                                                     |
+| Campo                        | Tipo / significado                                                                                                                                                     |
+| ---------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `instrumentId`               | Entero.                                                                                                                                                                |
+| `ticker`, `name`             | String o `null`, sin reemplazar datos ausentes.                                                                                                                        |
+| `quantity`                   | Entero con signo, reconstruido del historial.                                                                                                                          |
+| `marketPrice`                | Último `close` disponible.                                                                                                                                             |
+| `marketValue`                | Cantidad × precio, conservando el signo.                                                                                                                               |
+| `costBasis`                  | Costo restante por promedio ponderado móvil. Es `null` si hubo sobreventa.                                                                                             |
+| `returnPercentage`           | `(valor − costo) / costo × 100`. Es `null` si el costo es cero o no reconstruible. No incluye ganancias realizadas.                                                    |
+| `dailyPriceChangePercentage` | `(close − previousClose) / previousClose × 100`. Es `null` si el precio anterior falta o no es positivo. Mide la variación del precio, no el rendimiento de la cuenta. |
+| `quoteDate`                  | Fecha `YYYY-MM-DD` de la cotización utilizada.                                                                                                                         |
 
-Los importes (también `totalValue` y `availableCash`) y porcentajes se presentan como strings de dos decimales, sin símbolo `%`, con `ROUND_HALF_UP`. El cálculo conserva precisión interna hasta la presentación. Las cotizaciones pueden ser históricas; no se simula el mercado.
+Los importes (también `totalValue` y `availableCash`) y porcentajes se presentan como strings de dos decimales, sin símbolo `%`, con `ROUND_HALF_UP`. El cálculo conserva precisión interna hasta la presentación. Las cotizaciones pueden ser históricas y no se simula el mercado.
 
 Con el seed, el usuario 1 devuelve efectivo `753000.00` y total `889756.00`:
 
@@ -81,7 +81,7 @@ Con el seed, el usuario 1 devuelve efectivo `753000.00` y total `889756.00`:
 
 La posición negativa heredada se informa y genera un warning interno, sin campos adicionales ni correcciones de datos. No implica soporte de ventas en corto. Si falta el instrumento, la fecha o el precio necesario para valuar una posición abierta, se devuelve `500` controlado, no un total parcial.
 
-Un usuario existente sin movimientos devuelve `200` con importes `"0.00"` y `positions: []`; uno inexistente devuelve `404`.
+Un usuario existente sin movimientos devuelve `200` con importes `"0.00"` y `positions: []`. Uno inexistente devuelve `404`.
 
 ## Errores HTTP
 
@@ -117,6 +117,21 @@ Ejemplo de validación de `limit=101`:
 `POST /orders`
 
 Permite enviar una orden de compra o venta (`BUY` o `SELL`), ya sea por cantidad de acciones exacta o por monto a invertir en ARS (mutuamente excluyentes). Soporta órdenes `MARKET` y `LIMIT`.
+
+### Idempotencia obligatoria
+
+`POST /orders` exige un UUID v4 en la cabecera `Idempotency-Key`. Su ausencia o formato inválido devuelve `400 INVALID_REQUEST` en el middleware, antes de ejecutar el caso de uso o escribir en PostgreSQL. Su alcance es el `userId` del cuerpo. La clave, el código HTTP y el resultado se confirman en una misma transacción.
+
+- Repetir la misma clave con un payload equivalente devuelve `201` y exactamente la misma orden, sin crear otra fila en `orders`.
+- Esto también aplica a una orden `REJECTED`: es un resultado de negocio persistido y el reintento devuelve el mismo `id` y estado.
+- Reutilizarla para ese usuario con un payload diferente devuelve `409 IDEMPOTENCY_CONFLICT`.
+- Los importes se comparan normalizados: por ejemplo, `"90"` y `"90.00"` representan el mismo valor.
+- Un fallo técnico ocurrido durante el procesamiento de la orden se revierte hasta un savepoint y se confirma como `500` junto con la clave, sin crear la orden. Su repetición devuelve el mismo código y Problem Details, incluso si el servicio se recuperó.
+- Si no puede confirmarse el registro idempotente —por ejemplo, por pérdida de conexión o commit incierto— no se afirma que el `500` haya quedado guardado. Si el commit de la orden sí ocurrió pero se perdió la respuesta, el reintento recupera la orden.
+
+Las claves no expiran automáticamente en este alcance. El cliente debe generar una clave distinta para cada intención de crear una orden.
+
+Un `500` con `Idempotency-Outcome: finalized` confirma que ese fallo quedó guardado y que no se creó una orden: repetir la clave devuelve el mismo `500`. Para intentar la orden después de corregir el problema, el cliente debe iniciar una intención nueva con otra clave. Ante timeout o `500` **sin** esa cabecera, el resultado puede ser incierto: el cliente conserva clave y cuerpo, espera y reintenta con límite de intentos. Si no logra resolverlo, debe informar que no pudo confirmar el estado, sin afirmar que la orden se creó o se rechazó.
 
 ### Cuerpo de la solicitud
 
@@ -166,7 +181,9 @@ Permite enviar una orden de compra o venta (`BUY` o `SELL`), ya sea por cantidad
 
 | Situación                                    | Estado | Código                    |
 | -------------------------------------------- | ------ | ------------------------- |
+| Idempotency-Key ausente o no UUID v4         | `400`  | `INVALID_REQUEST`         |
 | Parámetros inválidos o exclusión size/amount | `400`  | `INVALID_REQUEST`         |
+| Idempotency-Key reutilizada con otro payload | `409`  | `IDEMPOTENCY_CONFLICT`    |
 | Usuario no encontrado                        | `404`  | `NOT_FOUND`               |
 | Instrumento no encontrado                    | `404`  | `NOT_FOUND`               |
 | Instrumento existente no negociable          | `422`  | `INSTRUMENT_NOT_TRADABLE` |
@@ -182,8 +199,8 @@ Las pruebas HTTP usan PostgreSQL local aislado: comprueban búsqueda por ambos c
 
 No se midió performance ni se agregaron índices de búsqueda. La decisión de postergar `pg_trgm` se explica en [supuestos y decisiones](../assumptions.md#búsqueda-e-índices).
 
-Portfolio tiene cinco tests de cálculo y cinco HTTP sin PostgreSQL: promedio móvil y precisión, cierre/reapertura, sobreventa, precio ausente, contrato completo del seed y warning, cuenta vacía/inexistente, validación y errores controlados/sanitizados. Su adaptador usa `REPEATABLE READ` y `READ ONLY`, con el mismo manager y lecturas por lote; no hay consultas por posición.
+Portfolio tiene cinco tests de cálculo y cinco HTTP sin PostgreSQL: promedio móvil y precisión, cierre/reapertura, sobreventa, precio ausente, contrato completo del seed y warning, cuenta vacía/inexistente, validación y errores controlados/sanitizados. Su adaptador usa `REPEATABLE READ` y `READ ONLY`, con el mismo manager y lecturas por lote. No hay consultas por posición.
 
-Órdenes tiene pruebas del dominio y del contrato HTTP sin PostgreSQL. El test funcional aislado crea sus propios usuarios, instrumentos, cotización y transferencias: comprueba una MARKET persistida, dos compras simultáneas sobre el mismo saldo —una `FILLED` y otra `REJECTED`— y el rechazo sin persistencia de un instrumento `MONEDA`. Los fixtures se eliminan al terminar.
+Órdenes tiene pruebas del dominio y del contrato HTTP sin PostgreSQL. El test funcional aislado crea sus propios usuarios, instrumentos, cotización y transferencias: comprueba una MARKET persistida, dos compras simultáneas sobre el mismo saldo —una `FILLED` y otra `REJECTED`—, dos solicitudes concurrentes con la misma clave que obtienen una sola orden, el conflicto por payload diferente y el rechazo sin persistencia de un instrumento `MONEDA`. Los fixtures y claves se eliminan al terminar.
 
-La API compilada se comprobó contra la base proporcionada, únicamente con GET: usuario 1 (`200`, total `889756.00`), usuario 2 vacío (`200`), usuario inexistente (`404`) e ID inválido (`400`, sin consultar la base). Se revisaron Swagger y las sentencias de la transacción: cuatro SELECT para la cuenta con posiciones, dos para la vacía y uno para el usuario inexistente. No se modificaron datos ni se midió performance. Esa comprobación fue anterior a mover la consulta de existencia al caso de uso; ahora se hace antes del snapshot financiero, sin sumar SELECT, y el refactor se verifica con mocks, no contra PostgreSQL.
+La API compilada se comprobó contra la base proporcionada, únicamente con GET: usuario 1 (`200`, total `889756.00`), usuario 2 vacío (`200`), usuario inexistente (`404`) e ID inválido (`400`, sin consultar la base). Se revisaron Swagger y las sentencias de la transacción: cuatro SELECT para la cuenta con posiciones, dos para la vacía y uno para el usuario inexistente. No se modificaron datos ni se midió performance. Esa comprobación fue anterior a mover la consulta de existencia al caso de uso. Ahora se hace antes del snapshot financiero, sin sumar SELECT, y el refactor se verifica con mocks, no contra PostgreSQL.

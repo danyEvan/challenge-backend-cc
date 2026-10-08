@@ -181,7 +181,7 @@ describe('Portfolio HTTP (without PostgreSQL)', () => {
     expect(repository.loadSnapshot).toHaveBeenCalledWith(1);
     expect(userRepository.exists).toHaveBeenCalledWith(1);
     expect(warning).toHaveBeenCalledWith(
-      'User 1 has negative position on instrument 31: -10 shares',
+      '[portfolio.negative_position] User 1 has negative position on instrument 31: -10 shares',
     );
   });
 

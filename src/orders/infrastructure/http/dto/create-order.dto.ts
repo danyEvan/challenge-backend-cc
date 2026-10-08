@@ -18,6 +18,13 @@ import {
 } from '#src/orders/domain/order-limits.js';
 
 const moneyPattern = /^(?:0|[1-9]\d{0,7})(?:\.\d{1,2})?$/;
+const SubmittableOrderSide = {
+  BUY: OrderSide.BUY,
+  SELL: OrderSide.SELL,
+} as const;
+
+type SubmittableOrderSide =
+  (typeof SubmittableOrderSide)[keyof typeof SubmittableOrderSide];
 
 function isPositiveOrderMoney(value: unknown): value is string {
   if (typeof value !== 'string' || !moneyPattern.test(value)) {
@@ -142,12 +149,12 @@ export class CreateOrderDto {
   instrumentId!: number;
 
   @ApiProperty({
-    enum: [OrderSide.BUY, OrderSide.SELL],
+    enum: Object.values(SubmittableOrderSide),
     description: 'Order side',
     example: OrderSide.BUY,
   })
-  @IsEnum(OrderSide)
-  side!: OrderSide;
+  @IsEnum(SubmittableOrderSide)
+  side!: SubmittableOrderSide;
 
   @ApiProperty({
     enum: [OrderType.MARKET, OrderType.LIMIT],
