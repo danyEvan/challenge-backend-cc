@@ -118,6 +118,8 @@ npm run db:down
 
 `verify:all` inicia `cocos_test` en `127.0.0.1:5433`, ejecuta las migraciones necesarias y corre las tres suites.
 
+[GitHub Actions](.github/workflows/ci.yml) ejecuta la misma verificación en cada push y pull request, con PostgreSQL de pruebas local al runner y sin usar la base Neon.
+
 Para ejecutar solo la integración y consultar sus restricciones de seguridad, ver la [guía de PostgreSQL](database/README.md#base-de-pruebas).
 
 ## Diseño y decisiones
