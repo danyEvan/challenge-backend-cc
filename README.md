@@ -1,5 +1,7 @@
 # Cocos Capital · Backend Challenge
 
+[![CI](https://github.com/danyEvan/challenge-backend-cc/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/danyEvan/challenge-backend-cc/actions/workflows/ci.yml)
+
 <p align="center">
   <img src="docs/pictures/cocos.jpg" alt="Cocos Capital" width="220" />
 </p>
