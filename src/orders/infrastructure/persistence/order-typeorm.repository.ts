@@ -1,55 +1,53 @@
 import { createHash } from 'node:crypto';
-import type { DataSource } from 'typeorm';
+import { Logger } from '@nestjs/common';
+import type { DataSource, EntityManager } from 'typeorm';
+import { calculateAccountAvailability } from '#src/shared/domain/account/calculate-account-availability.js';
 import { Money } from '#src/shared/domain/money/money.js';
+import type { MarketQuote } from '#src/shared/domain/trading/market-quote.js';
 import {
+  InstrumentType,
   OrderSide,
   OrderStatus,
   OrderType,
 } from '#src/shared/domain/trading/trading.types.js';
 import { IdempotencyConflictError } from '#src/shared/infrastructure/idempotency/idempotency-conflict.error.js';
 import { IdempotencyKeyContext } from '#src/shared/infrastructure/idempotency/idempotency-key.context.js';
+import { InstrumentEntity } from '#src/shared/infrastructure/persistence/entities/instrument.entity.js';
+import { OrderEntity } from '#src/shared/infrastructure/persistence/entities/order.entity.js';
 import { UserEntity } from '#src/shared/infrastructure/persistence/entities/user.entity.js';
 import { IdempotencyTypeOrmRepository } from '#src/shared/infrastructure/persistence/idempotency-typeorm.repository.js';
-import {
-  RecordedOrderFailureError,
-  type RecordedOrderFailureCode,
-} from './recorded-order-failure.error.js';
-import type { PersistedOrder } from '#src/orders/application/interfaces/persisted-order.js';
+import { TradingTypeOrmRepository } from '#src/shared/infrastructure/persistence/trading-typeorm.repository.js';
 import type { OrderRequest } from '#src/orders/application/interfaces/order-request.js';
+import type { PersistedOrder } from '#src/orders/application/interfaces/persisted-order.js';
 import { OrderRepository } from '#src/orders/application/ports/order.repository.js';
+import { evaluateOrder } from '#src/orders/domain/evaluate-order.js';
 import { InvalidOrderError } from '#src/orders/domain/errors/invalid-order.error.js';
 import { InstrumentNotFoundError } from '#src/orders/domain/errors/instrument-not-found.error.js';
 import { InstrumentNotTradableError } from '#src/orders/domain/errors/instrument-not-tradable.error.js';
 import { MarketDataUnavailableError } from '#src/orders/domain/errors/market-data-unavailable.error.js';
 import { UserNotFoundError } from '#src/orders/domain/errors/user-not-found.error.js';
-import { persistEvaluatedOrder } from './persist-evaluated-order.js';
+import {
+  RecordedOrderFailureError,
+  type RecordedOrderFailureCode,
+} from './recorded-order-failure.error.js';
 
 const IDEMPOTENCY_OPERATION = 'orders.submit';
 const ORDER_SAVEPOINT = 'order_execution';
 
 type SubmissionOutcome =
-  | { readonly kind: 'order'; readonly order: PersistedOrder }
+  | {
+      readonly kind: 'order';
+      readonly order: PersistedOrder;
+      readonly created: boolean;
+    }
   | { readonly kind: 'failure'; readonly error: RecordedOrderFailureError };
 
-function isRequestError(error: unknown): boolean {
+function isUnrecordedError(error: unknown): boolean {
   return (
     error instanceof InstrumentNotFoundError ||
     error instanceof InstrumentNotTradableError ||
-    error instanceof InvalidOrderError
-  );
-}
-
-function toRecordedFailure(error: unknown): RecordedOrderFailureError {
-  if (error instanceof MarketDataUnavailableError) {
-    return new RecordedOrderFailureError(
-      'MARKET_DATA_UNAVAILABLE',
-      error.message,
-    );
-  }
-
-  return new RecordedOrderFailureError(
-    'INTERNAL_ERROR',
-    'An unexpected error occurred.',
+    error instanceof InvalidOrderError ||
+    error instanceof MarketDataUnavailableError
   );
 }
 
@@ -59,6 +57,7 @@ function restoreRecordedFailure(result: unknown): RecordedOrderFailureError {
   }
 
   const failure = result as Record<string, unknown>;
+  // Conservamos el replay de resultados confirmados antes de esta política.
   if (
     (failure.code !== 'MARKET_DATA_UNAVAILABLE' &&
       failure.code !== 'INTERNAL_ERROR') ||
@@ -113,7 +112,6 @@ function restoreOrder(result: unknown): PersistedOrder {
   if (Number.isNaN(submittedAt.getTime())) {
     throw new Error('Idempotency result contains an invalid date');
   }
-
   return {
     id: order.id as number,
     userId: order.userId as number,
@@ -128,6 +126,8 @@ function restoreOrder(result: unknown): PersistedOrder {
 }
 
 export class OrderTypeOrmRepository extends OrderRepository {
+  private readonly logger = new Logger(OrderTypeOrmRepository.name);
+
   constructor(
     private readonly dataSource: DataSource,
     private readonly idempotencyKeyContext: IdempotencyKeyContext,
@@ -167,7 +167,11 @@ export class OrderTypeOrmRepository extends OrderRepository {
             throw new IdempotencyConflictError();
           }
           if (idempotency.statusCode === 201) {
-            return { kind: 'order', order: restoreOrder(idempotency.result) };
+            return {
+              kind: 'order',
+              order: restoreOrder(idempotency.result),
+              created: false,
+            };
           }
           if (idempotency.statusCode === 500) {
             return {
@@ -182,15 +186,18 @@ export class OrderTypeOrmRepository extends OrderRepository {
         await manager.query(`SAVEPOINT ${ORDER_SAVEPOINT}`);
         let persistedOrder: PersistedOrder;
         try {
-          persistedOrder = await persistEvaluatedOrder(manager, input);
+          persistedOrder = await this.evaluateAndPersistOrder(manager, input);
         } catch (error) {
-          if (isRequestError(error)) {
+          if (isUnrecordedError(error)) {
             throw error;
           }
 
           await manager.query(`ROLLBACK TO SAVEPOINT ${ORDER_SAVEPOINT}`);
           await manager.query(`RELEASE SAVEPOINT ${ORDER_SAVEPOINT}`);
-          const failure = toRecordedFailure(error);
+          const failure = new RecordedOrderFailureError(
+            'INTERNAL_ERROR',
+            'An unexpected error occurred.',
+          );
           await idempotencyRepository.complete(idempotency.recordId, 500, {
             code: failure.code,
             detail: failure.message,
@@ -200,12 +207,18 @@ export class OrderTypeOrmRepository extends OrderRepository {
 
         await manager.query(`RELEASE SAVEPOINT ${ORDER_SAVEPOINT}`);
         await idempotencyRepository.complete(idempotency.recordId, 201, {
-          ...persistedOrder,
+          id: persistedOrder.id,
+          userId: persistedOrder.userId,
+          instrumentId: persistedOrder.instrumentId,
+          side: persistedOrder.side,
+          type: persistedOrder.type,
+          size: persistedOrder.size,
           price: persistedOrder.price.toString(),
+          status: persistedOrder.status,
           datetime: persistedOrder.datetime.toISOString(),
         });
 
-        return { kind: 'order', order: persistedOrder };
+        return { kind: 'order', order: persistedOrder, created: true };
       },
     );
 
@@ -213,6 +226,82 @@ export class OrderTypeOrmRepository extends OrderRepository {
       throw outcome.error;
     }
 
+    if (outcome.created && outcome.order.status === OrderStatus.REJECTED) {
+      const reason =
+        outcome.order.side === OrderSide.BUY
+          ? 'INSUFFICIENT_CASH'
+          : 'INSUFFICIENT_SHARES';
+      this.logger.log(
+        `[orders.rejected] Order ${outcome.order.id} for user ${outcome.order.userId} on instrument ${outcome.order.instrumentId} was rejected: ${reason}`,
+      );
+    }
+
     return outcome.order;
+  }
+
+  private async evaluateAndPersistOrder(
+    manager: EntityManager,
+    input: OrderRequest,
+  ): Promise<PersistedOrder> {
+    const instrument = await manager.getRepository(InstrumentEntity).findOne({
+      where: { id: input.instrumentId },
+      select: { id: true, type: true },
+    });
+    if (!instrument) {
+      throw new InstrumentNotFoundError();
+    }
+    if (instrument.type !== InstrumentType.STOCK) {
+      throw new InstrumentNotTradableError();
+    }
+
+    const tradingRepository = new TradingTypeOrmRepository(manager);
+    let marketQuote: MarketQuote | undefined;
+    if (input.type === OrderType.MARKET) {
+      const latestQuotes = await tradingRepository.findLatestQuotes([
+        input.instrumentId,
+      ]);
+      marketQuote = latestQuotes.get(input.instrumentId);
+    }
+
+    const movements = await tradingRepository.findAvailabilityMovements(
+      input.userId,
+    );
+    const availability = calculateAccountAvailability(movements);
+    const availableShares =
+      availability.positions.get(input.instrumentId)?.availableQuantity ?? 0;
+    const evaluatedOrder = evaluateOrder({
+      side: input.side,
+      type: input.type,
+      size: input.size,
+      amount: input.amount,
+      price: input.price,
+      marketQuote,
+      availableCash: availability.availableCash,
+      availableShares,
+    });
+
+    const submittedAt = new Date();
+    const orderEntity = manager.getRepository(OrderEntity).create({
+      userId: input.userId,
+      instrumentId: input.instrumentId,
+      size: evaluatedOrder.size,
+      price: evaluatedOrder.price.toString(),
+      type: evaluatedOrder.type,
+      side: evaluatedOrder.side,
+      status: evaluatedOrder.status,
+      datetime: submittedAt,
+    });
+    const saved = await manager.getRepository(OrderEntity).save(orderEntity);
+    return {
+      id: saved.id,
+      userId: input.userId,
+      instrumentId: input.instrumentId,
+      side: evaluatedOrder.side,
+      type: evaluatedOrder.type,
+      size: evaluatedOrder.size,
+      price: evaluatedOrder.price,
+      status: evaluatedOrder.status,
+      datetime: submittedAt,
+    };
   }
 }

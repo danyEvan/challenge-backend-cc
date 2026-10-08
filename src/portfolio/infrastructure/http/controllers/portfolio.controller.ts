@@ -44,9 +44,9 @@ export class PortfolioController {
 
   @Get()
   @ApiOperation({
-    summary: 'Get account cash, positions and valuation',
+    summary: 'Get account cash, reservations, positions and valuation',
     description:
-      'Complete ARS portfolio, without pagination. Preserves signed historical balances. Latest available quotes may be historical.',
+      'Complete ARS portfolio, without pagination. NEW orders reserve cash or shares without changing executed positions or total value. Latest available quotes may be historical.',
   })
   @ApiParam({
     name: 'userId',

@@ -1,8 +1,11 @@
-import type { Decimal } from 'decimal.js';
 import type { AccountMovement } from '#src/shared/domain/account/account-movement.js';
-import { calculateAccountResources } from '#src/shared/domain/account/calculate-account-resources.js';
+import {
+  calculateAccountAvailability,
+  type AccountPositionAvailability,
+} from '#src/shared/domain/account/calculate-account-availability.js';
 import { InvalidAccountHistoryError } from '#src/shared/domain/account/errors/invalid-account-history.error.js';
 import { Money } from '#src/shared/domain/money/money.js';
+import { calculatePercentageChange } from '#src/shared/domain/money/percentage-change.js';
 import type { MarketQuote } from '#src/shared/domain/trading/market-quote.js';
 import {
   OrderSide,
@@ -24,40 +27,50 @@ type ValuableQuote = MarketQuote & {
 export function calculatePortfolio(
   movements: readonly AccountMovement[],
   quotes: ReadonlyMap<number, MarketQuote>,
-): { availableCash: Money; totalValue: Money; positions: ValuedPosition[] } {
-  const accountResources = calculateAccountResources(movements);
+): {
+  cashBalance: Money;
+  reservedCash: Money;
+  availableCash: Money;
+  totalValue: Money;
+  positions: ValuedPosition[];
+} {
+  const availability = calculateAccountAvailability(movements);
   const positionCosts = calculatePositionCosts(movements);
   const positions = valueOpenPositions(
-    accountResources.positions,
+    availability.positions,
     positionCosts,
     quotes,
   );
   const totalValue = positions.reduce(
     (currentTotal, position) => currentTotal.add(position.marketValue),
-    accountResources.availableCash,
+    availability.cashBalance,
   );
 
   return {
-    availableCash: accountResources.availableCash,
+    cashBalance: availability.cashBalance,
+    reservedCash: availability.reservedCash,
+    availableCash: availability.availableCash,
     totalValue,
     positions,
   };
 }
 
 function valueOpenPositions(
-  quantities: ReadonlyMap<number, number>,
+  accountPositions: ReadonlyMap<number, AccountPositionAvailability>,
   positionCosts: ReadonlyMap<number, PositionCostState>,
   quotes: ReadonlyMap<number, MarketQuote>,
 ): ValuedPosition[] {
-  return [...quantities].map(([instrumentId, quantity]) => {
+  return [...accountPositions].map(([instrumentId, accountPosition]) => {
     const quote = requireValuableQuote(instrumentId, quotes);
 
-    const marketValue = quote.close.multiply(quantity);
+    const marketValue = quote.close.multiply(accountPosition.quantity);
     const costBasis = positionCosts.get(instrumentId)?.costBasis ?? null;
 
     return {
       instrumentId,
-      quantity,
+      quantity: accountPosition.quantity,
+      reservedQuantity: accountPosition.reservedQuantity,
+      availableQuantity: accountPosition.availableQuantity,
       marketPrice: quote.close,
       marketValue,
       costBasis,
@@ -169,15 +182,4 @@ function applyTradeToPositionCost(
   }
 
   return { quantity: nextQuantity, costBasis: nextCostBasis };
-}
-
-function calculatePercentageChange(
-  current: Money,
-  base: Money | null,
-): Decimal | null {
-  if (base === null || base.compare(Money.zero()) <= 0) {
-    return null;
-  }
-
-  return current.subtract(base).toDecimal().div(base.toDecimal()).times(100);
 }

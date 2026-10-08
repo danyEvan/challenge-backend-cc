@@ -1,19 +1,10 @@
-import type { Decimal } from 'decimal.js';
 import type { UserRepository } from '#src/shared/application/ports/user.repository.js';
+import { formatPercentage } from '#src/shared/domain/money/percentage-change.js';
 import { calculatePortfolio } from '#src/portfolio/domain/calculate-portfolio.js';
 import { PortfolioDataUnavailableError } from '#src/portfolio/domain/errors/portfolio-data-unavailable.error.js';
 import { UserNotFoundError } from '#src/portfolio/domain/errors/user-not-found.error.js';
 import type { PortfolioResult } from '#src/portfolio/application/interfaces/portfolio-result.js';
 import type { PortfolioRepository } from '#src/portfolio/application/ports/portfolio.repository.js';
-
-function formatPercentage(value: Decimal | null): string | null {
-  if (value === null) {
-    return null;
-  }
-
-  const rounded = value.toDecimalPlaces(2);
-  return rounded.isZero() ? '0.00' : rounded.toFixed(2);
-}
 
 export class GetPortfolio {
   constructor(
@@ -43,6 +34,8 @@ export class GetPortfolio {
         ticker: instrument.ticker,
         name: instrument.name,
         quantity: position.quantity,
+        reservedQuantity: position.reservedQuantity,
+        availableQuantity: position.availableQuantity,
         marketPrice: position.marketPrice.toString(),
         marketValue: position.marketValue.toString(),
         costBasis: position.costBasis?.toString() ?? null,
@@ -71,6 +64,8 @@ export class GetPortfolio {
       userId,
       currency: 'ARS',
       totalValue: portfolio.totalValue.toString(),
+      cashBalance: portfolio.cashBalance.toString(),
+      reservedCash: portfolio.reservedCash.toString(),
       availableCash: portfolio.availableCash.toString(),
       positions,
     };

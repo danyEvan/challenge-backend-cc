@@ -4,9 +4,9 @@ PostgreSQL contiene usuarios, instrumentos, movimientos y precios de mercado. El
 
 ## Conexión
 
-La API lee `DATABASE_URL` desde el entorno o `.env`. El [archivo de ejemplo](../.env.example) contiene valores locales y un formato para completar la conexión remota.
+La API lee `DATABASE_URL` desde el entorno o `.env`. Se puede usar PostgreSQL local, cargado con el dump, o la base Neon provista. El [archivo de ejemplo](../.env.example) contiene los valores locales y un formato para la conexión a Neon.
 
-La base proporcionada ya contiene datos. Se inspeccionaron mediante consultas de solo lectura sus columnas, nulabilidad, claves e índices, que coinciden con el esquema funcional del SQL provisto. La configuración mantiene `synchronize: false`. El esquema adicional se entrega mediante migraciones explícitas y no se corrigen los datos originales.
+La base Neon ya contiene los datos iniciales y no necesita que se importe el dump. Se inspeccionaron mediante consultas de solo lectura sus columnas, nulabilidad, claves e índices, que coinciden con el esquema funcional del SQL provisto. La configuración mantiene `synchronize: false`. El esquema adicional se entrega mediante migraciones explícitas y no se corrigen los datos originales.
 
 | Variable       | Valor o validación                                     |
 | -------------- | ------------------------------------------------------ |

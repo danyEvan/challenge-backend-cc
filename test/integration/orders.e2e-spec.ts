@@ -32,6 +32,8 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
   let functionalUser: UserEntity;
   let concurrentUser: UserEntity;
   let idempotentUser: UserEntity;
+  let reservationBuyer: UserEntity;
+  let reservationSeller: UserEntity;
   let quote: MarketDataEntity;
   let recoveredQuote: MarketDataEntity;
   const marker = randomUUID().replaceAll('-', '').slice(0, 12);
@@ -69,21 +71,34 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
         type: InstrumentType.STOCK,
       },
     ]);
-    [functionalUser, concurrentUser, idempotentUser] =
-      await userRepository.save([
-        {
-          email: `order-functional-${marker}@test.local`,
-          accountNumber: `OF${marker}`,
-        },
-        {
-          email: `order-concurrent-${marker}@test.local`,
-          accountNumber: `OC${marker}`,
-        },
-        {
-          email: `order-idempotent-${marker}@test.local`,
-          accountNumber: `OI${marker}`,
-        },
-      ]);
+    [
+      functionalUser,
+      concurrentUser,
+      idempotentUser,
+      reservationBuyer,
+      reservationSeller,
+    ] = await userRepository.save([
+      {
+        email: `order-functional-${marker}@test.local`,
+        accountNumber: `OF${marker}`,
+      },
+      {
+        email: `order-concurrent-${marker}@test.local`,
+        accountNumber: `OC${marker}`,
+      },
+      {
+        email: `order-idempotent-${marker}@test.local`,
+        accountNumber: `OI${marker}`,
+      },
+      {
+        email: `order-reserved-buy-${marker}@test.local`,
+        accountNumber: `OB${marker}`,
+      },
+      {
+        email: `order-reserved-sell-${marker}@test.local`,
+        accountNumber: `OS${marker}`,
+      },
+    ]);
     quote = await marketDataRepository.save({
       instrumentId: stock.id,
       high: '100.00',
@@ -124,26 +139,63 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
         status: OrderStatus.FILLED,
         datetime: new Date('2023-07-12T12:00:00.000Z'),
       },
+      {
+        instrumentId: currency.id,
+        userId: reservationBuyer.id,
+        size: 1000,
+        price: '1.00',
+        type: OrderType.MARKET,
+        side: OrderSide.CASH_IN,
+        status: OrderStatus.FILLED,
+        datetime: new Date('2023-07-12T12:00:00.000Z'),
+      },
+      {
+        instrumentId: currency.id,
+        userId: reservationSeller.id,
+        size: 1000,
+        price: '1.00',
+        type: OrderType.MARKET,
+        side: OrderSide.CASH_IN,
+        status: OrderStatus.FILLED,
+        datetime: new Date('2023-07-12T12:00:00.000Z'),
+      },
+      {
+        instrumentId: stock.id,
+        userId: reservationSeller.id,
+        size: 10,
+        price: '100.00',
+        type: OrderType.MARKET,
+        side: OrderSide.BUY,
+        status: OrderStatus.FILLED,
+        datetime: new Date('2023-07-12T12:01:00.000Z'),
+      },
     ]);
   });
 
   afterAll(async () => {
     try {
-      if (functionalUser && concurrentUser && idempotentUser) {
+      if (
+        functionalUser &&
+        concurrentUser &&
+        idempotentUser &&
+        reservationBuyer &&
+        reservationSeller
+      ) {
+        const userIds = [
+          functionalUser.id,
+          concurrentUser.id,
+          idempotentUser.id,
+          reservationBuyer.id,
+          reservationSeller.id,
+        ];
         await idempotencyRepository.delete({
           operation: 'orders.submit',
-          scope: In([
-            `user:${functionalUser.id}`,
-            `user:${concurrentUser.id}`,
-            `user:${idempotentUser.id}`,
-          ]),
+          scope: In(userIds.map((userId) => `user:${userId}`)),
         });
         await orderRepository.delete({
-          userId: In([functionalUser.id, concurrentUser.id, idempotentUser.id]),
+          userId: In(userIds),
         });
-        await userRepository.delete({
-          id: In([functionalUser.id, concurrentUser.id, idempotentUser.id]),
-        });
+        await userRepository.delete({ id: In(userIds) });
       }
       if (quote) {
         await marketDataRepository.delete({ id: quote.id });
@@ -202,6 +254,7 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
       price: '100.00',
       status: OrderStatus.FILLED,
     });
+    expect(response.body.data).not.toHaveProperty('rejectionReason');
 
     const persisted = await orderRepository.findOneByOrFail({
       id: response.body.data.id as number,
@@ -237,7 +290,6 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
         .map(({ body }) => body.data.status as string)
         .sort((left, right) => left.localeCompare(right)),
     ).toEqual([OrderStatus.FILLED, OrderStatus.REJECTED]);
-
     const persisted = await orderRepository.findBy({
       id: In(responses.map(({ body }) => body.data.id as number)),
     });
@@ -246,6 +298,82 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
         .map(({ status }) => status)
         .sort((left, right) => (left ?? '').localeCompare(right ?? '')),
     ).toEqual([OrderStatus.FILLED, OrderStatus.REJECTED]);
+  });
+
+  it('serializes simultaneous LIMIT buys against cash after reservations', async () => {
+    const submit = () =>
+      request(app.getHttpServer())
+        .post('/orders')
+        .set('Idempotency-Key', randomUUID())
+        .send({
+          userId: reservationBuyer.id,
+          instrumentId: stock.id,
+          side: OrderSide.BUY,
+          type: OrderType.LIMIT,
+          size: 6,
+          price: '100.00',
+        });
+
+    const responses = await Promise.all([
+      submit().expect(201),
+      submit().expect(201),
+    ]);
+    expect(
+      responses
+        .map(({ body }) => body.data.status as string)
+        .sort((left, right) => left.localeCompare(right)),
+    ).toEqual([OrderStatus.NEW, OrderStatus.REJECTED]);
+    const portfolio = await request(app.getHttpServer())
+      .get(`/users/${reservationBuyer.id}/portfolio`)
+      .expect(200);
+    expect(portfolio.body.data).toMatchObject({
+      cashBalance: '1000.00',
+      reservedCash: '600.00',
+      availableCash: '400.00',
+    });
+  });
+
+  it('rejects a LIMIT sell that exceeds shares left after reservations', async () => {
+    const first = await request(app.getHttpServer())
+      .post('/orders')
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        userId: reservationSeller.id,
+        instrumentId: stock.id,
+        side: OrderSide.SELL,
+        type: OrderType.LIMIT,
+        size: 7,
+        price: '110.00',
+      })
+      .expect(201);
+    expect(first.body.data.status).toBe(OrderStatus.NEW);
+
+    const second = await request(app.getHttpServer())
+      .post('/orders')
+      .set('Idempotency-Key', randomUUID())
+      .send({
+        userId: reservationSeller.id,
+        instrumentId: stock.id,
+        side: OrderSide.SELL,
+        type: OrderType.LIMIT,
+        size: 4,
+        price: '110.00',
+      })
+      .expect(201);
+    expect(second.body.data.status).toBe(OrderStatus.REJECTED);
+    expect(second.body.data).not.toHaveProperty('rejectionReason');
+
+    const portfolio = await request(app.getHttpServer())
+      .get(`/users/${reservationSeller.id}/portfolio`)
+      .expect(200);
+    expect(portfolio.body.data.positions).toContainEqual(
+      expect.objectContaining({
+        instrumentId: stock.id,
+        quantity: 10,
+        reservedQuantity: 7,
+        availableQuantity: 3,
+      }),
+    );
   });
 
   it('returns one order for simultaneous requests with the same idempotency key', async () => {
@@ -281,7 +409,10 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
       scope: `user:${idempotentUser.id}`,
       key: idempotencyKey,
     });
-    expect(stored.result).toMatchObject(responses[0].body.data);
+    expect(stored.result).toMatchObject({
+      id: responses[0].body.data.id,
+      status: OrderStatus.FILLED,
+    });
     expect(stored.statusCode).toBe(201);
     await expect(orderRepository.countBy({ id: orderIds[0] })).resolves.toBe(1);
   });
@@ -305,6 +436,7 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
     const replay = await submit().expect(201);
 
     expect(created.body.data.status).toBe(OrderStatus.REJECTED);
+    expect(created.body.data).not.toHaveProperty('rejectionReason');
     expect(replay.body).toEqual(created.body);
     await expect(
       orderRepository.countBy({ userId: idempotentUser.id }),
@@ -318,7 +450,7 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
     ).resolves.toBe(1);
   });
 
-  it('stores and replays a confirmed service error without creating an order', async () => {
+  it('retries a MARKET order with the same key after its quote becomes available', async () => {
     const idempotencyKey = randomUUID();
     const before = await orderRepository.countBy({ userId: functionalUser.id });
     const submit = () =>
@@ -333,10 +465,19 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
           size: 1,
         });
 
-    const first = await submit()
-      .expect(500)
-      .expect('Idempotency-Outcome', 'finalized');
+    const first = await submit().expect(500);
     expect(first.body.code).toBe('MARKET_DATA_UNAVAILABLE');
+    expect(first.headers['idempotency-outcome']).toBeUndefined();
+    await expect(
+      idempotencyRepository.countBy({
+        operation: 'orders.submit',
+        scope: `user:${functionalUser.id}`,
+        key: idempotencyKey,
+      }),
+    ).resolves.toBe(0);
+    await expect(
+      orderRepository.countBy({ userId: functionalUser.id }),
+    ).resolves.toBe(before);
 
     recoveredQuote = await marketDataRepository.save({
       instrumentId: unquotedStock.id,
@@ -348,23 +489,29 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
       date: '2023-07-14',
     });
 
-    const replay = await submit()
-      .expect(500)
-      .expect('Idempotency-Outcome', 'finalized');
-    expect(replay.body).toEqual(first.body);
+    const created = await submit().expect(201);
+    expect(created.body.data).toMatchObject({
+      userId: functionalUser.id,
+      instrumentId: unquotedStock.id,
+      size: 1,
+      price: '100.00',
+      status: OrderStatus.FILLED,
+    });
+    const replay = await submit().expect(201);
+    expect(replay.body).toEqual(created.body);
 
     await expect(
       orderRepository.countBy({ userId: functionalUser.id }),
-    ).resolves.toBe(before);
+    ).resolves.toBe(before + 1);
     const stored = await idempotencyRepository.findOneByOrFail({
       operation: 'orders.submit',
       scope: `user:${functionalUser.id}`,
       key: idempotencyKey,
     });
-    expect(stored.statusCode).toBe(500);
-    expect(stored.result).toEqual({
-      code: 'MARKET_DATA_UNAVAILABLE',
-      detail: first.body.detail,
+    expect(stored.statusCode).toBe(201);
+    expect(stored.result).toMatchObject({
+      id: created.body.data.id,
+      status: OrderStatus.FILLED,
     });
 
     await request(app.getHttpServer())
@@ -378,18 +525,65 @@ describe('Order submission (HTTP and PostgreSQL)', () => {
         size: 2,
       })
       .expect(409);
+  });
 
-    await request(app.getHttpServer())
-      .post('/orders')
-      .set('Idempotency-Key', randomUUID())
-      .send({
-        userId: functionalUser.id,
-        instrumentId: unquotedStock.id,
-        side: OrderSide.BUY,
-        type: OrderType.MARKET,
-        size: 1,
-      })
-      .expect(201);
+  it('keeps an unexpected confirmed failure replayable after its cause is removed', async () => {
+    const idempotencyKey = randomUUID();
+    const before = await orderRepository.countBy({ userId: functionalUser.id });
+    const invalidPending = await orderRepository.save({
+      userId: functionalUser.id,
+      instrumentId: stock.id,
+      size: 1,
+      price: null,
+      side: OrderSide.BUY,
+      type: OrderType.LIMIT,
+      status: OrderStatus.NEW,
+      datetime: new Date(),
+    });
+    const submit = () =>
+      request(app.getHttpServer())
+        .post('/orders')
+        .set('Idempotency-Key', idempotencyKey)
+        .send({
+          userId: functionalUser.id,
+          instrumentId: stock.id,
+          side: OrderSide.BUY,
+          type: OrderType.LIMIT,
+          size: 1,
+          price: '100.00',
+        });
+
+    let firstBody: unknown;
+    try {
+      const first = await submit()
+        .expect(500)
+        .expect('Idempotency-Outcome', 'finalized');
+      expect(first.body.code).toBe('INTERNAL_ERROR');
+      firstBody = first.body;
+      await expect(
+        orderRepository.countBy({ userId: functionalUser.id }),
+      ).resolves.toBe(before + 1);
+    } finally {
+      await orderRepository.delete({ id: invalidPending.id });
+    }
+
+    const replay = await submit()
+      .expect(500)
+      .expect('Idempotency-Outcome', 'finalized');
+    expect(replay.body).toEqual(firstBody);
+    await expect(
+      orderRepository.countBy({ userId: functionalUser.id }),
+    ).resolves.toBe(before);
+    const stored = await idempotencyRepository.findOneByOrFail({
+      operation: 'orders.submit',
+      scope: `user:${functionalUser.id}`,
+      key: idempotencyKey,
+    });
+    expect(stored.statusCode).toBe(500);
+    expect(stored.result).toEqual({
+      code: 'INTERNAL_ERROR',
+      detail: 'An unexpected error occurred.',
+    });
   });
 
   it('returns 409 when the same key is reused with a different payload', async () => {

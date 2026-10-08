@@ -47,14 +47,20 @@ sequenceDiagram
                 Controller-->>Client: COMMIT y replay
             else Clave nueva
                 Repository->>DB: SAVEPOINT order_execution
-                Repository->>DB: Leer instrumento, último close y movimientos FILLED
-                Repository->>Domain: Evaluar precio, cantidad y recursos
+                Repository->>DB: Leer instrumento, último close y movimientos FILLED y NEW
+                Repository->>Domain: Evaluar precio, cantidad y recursos disponibles
 
                 alt Solicitud de negocio inválida
                     Domain-->>Repository: Error conocido
                     Repository-->>UseCase: Propagar error
                     UseCase-->>Controller: Propagar error
                     Controller-->>Client: ROLLBACK y 4xx Problem Details
+                else Cotización MARKET ausente
+                    Domain-->>Repository: MarketDataUnavailableError
+                    Repository->>DB: ROLLBACK (orden y clave no guardadas)
+                    Repository-->>UseCase: Propagar error
+                    UseCase-->>Controller: Propagar error
+                    Controller-->>Client: 500 MARKET_DATA_UNAVAILABLE, clave reutilizable
                 else Orden evaluada
                     Domain-->>Repository: FILLED, NEW o REJECTED
                     Repository->>DB: INSERT orders
@@ -63,7 +69,7 @@ sequenceDiagram
                     Repository-->>UseCase: Orden persistida
                     UseCase-->>Controller: OrderResult
                     Controller-->>Client: 201 con data
-                else Fallo técnico durante la operación
+                else Fallo técnico inesperado durante la operación
                     Repository->>DB: ROLLBACK TO SAVEPOINT
                     Repository->>DB: Guardar fallo idempotente 500
                     Repository->>DB: COMMIT

@@ -2,7 +2,9 @@ import type { AccountMovement } from '#src/shared/domain/account/account-movemen
 import type { MarketQuote } from '#src/shared/domain/trading/market-quote.js';
 
 export abstract class TradingRepository {
-  abstract findExecutedMovements(userId: number): Promise<AccountMovement[]>;
+  abstract findAvailabilityMovements(
+    userId: number,
+  ): Promise<AccountMovement[]>;
 
   // Si falta cotización, el caso de uso decide cómo informarlo
   abstract findLatestQuotes(

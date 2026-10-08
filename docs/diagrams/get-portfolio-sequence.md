@@ -27,8 +27,8 @@ sequenceDiagram
         UseCase->>Portfolio: loadSnapshot(userId)
         Portfolio->>DB: BEGIN REPEATABLE READ
         Portfolio->>DB: SET TRANSACTION READ ONLY
-        Portfolio->>DB: Leer movimientos FILLED
-        Portfolio->>Portfolio: Reconstruir efectivo y cantidades
+        Portfolio->>DB: Leer movimientos FILLED y NEW
+        Portfolio->>Portfolio: Detectar posiciones ejecutadas
 
         opt Hay posiciones abiertas
             Portfolio->>DB: Leer instrumentos en lote
@@ -37,7 +37,7 @@ sequenceDiagram
 
         Portfolio->>DB: COMMIT
         Portfolio-->>UseCase: Snapshot consistente
-        UseCase->>Domain: Calcular costo, valor y rendimientos
+        UseCase->>Domain: Calcular disponibilidad, valor y rendimientos
         Domain-->>UseCase: Portfolio valuado
         UseCase->>UseCase: Completar datos y ordenar posiciones
         UseCase-->>Controller: PortfolioResult

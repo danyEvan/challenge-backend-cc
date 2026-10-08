@@ -6,7 +6,7 @@ Swagger está disponible en `/api/docs`. El archivo [REST Client](cocos-capital.
 
 `GET /instruments`
 
-Busca una subcadena en ticker **o** nombre, sin distinguir mayúsculas. Devuelve únicamente activos negociables de tipo `ACCIONES`. El registro `ARS` de tipo `MONEDA` representa efectivo interno y se excluye del catálogo. Los tipos nulos o desconocidos también quedan afuera.
+Busca una subcadena en ticker **o** nombre, sin distinguir mayúsculas. Devuelve únicamente activos negociables de tipo `ACCIONES`, junto con un resumen de su última cotización disponible. El registro `ARS` de tipo `MONEDA` representa efectivo interno y se excluye del catálogo. Los tipos nulos o desconocidos también quedan afuera.
 
 | Parámetro | Regla                                                                                                                                    | Predeterminado |
 | --------- | ---------------------------------------------------------------------------------------------------------------------------------------- | -------------- |
@@ -33,7 +33,10 @@ Los resultados se ordenan por `ticker ASC NULLS LAST` e `id ASC` como desempate.
       "id": 34,
       "ticker": "GGAL",
       "name": "Grupo Financiero Galicia",
-      "type": "ACCIONES"
+      "type": "ACCIONES",
+      "lastClose": "885.80",
+      "quoteDate": "2023-07-14",
+      "dailyPriceChangePercentage": "-3.48"
     }
   ],
   "meta": {
@@ -43,7 +46,9 @@ Los resultados se ordenan por `ticker ASC NULLS LAST` e `id ASC` como desempate.
 }
 ```
 
-El formato de éxito de negocio es `{ data, meta }` para listados paginados y `{ data }` para recursos individuales. El controller traduce el resultado interno del caso de uso a ese DTO HTTP. Cada elemento de `data` expone únicamente `id`, `ticker`, `name` y `type`. `ticker` y `name` admiten `null`, como en el SQL provisto. `type` siempre es `ACCIONES` por la política de operabilidad. No se reemplazan datos ausentes ni se omite un activo negociable que coincida por el otro campo.
+El formato de éxito de negocio es `{ data, meta }` para listados paginados y `{ data }` para recursos individuales. El controller traduce el resultado interno del caso de uso a ese DTO HTTP. Cada elemento de `data` expone `id`, `ticker`, `name`, `type`, `lastClose`, `quoteDate` y `dailyPriceChangePercentage`. `ticker` y `name` admiten `null`, como en el SQL provisto. `type` siempre es `ACCIONES` por la política de operabilidad. No se reemplazan datos ausentes ni se omite un activo negociable que coincida por el otro campo.
+
+`lastClose` es el `close` del registro seleccionado de `marketdata`, en ARS y como string de dos decimales; **no es una cotización en tiempo real ni una oferta ejecutable**. `quoteDate` es su fecha `YYYY-MM-DD`, o `null` si no consta. La variación diaria es `(close − previousClose) / previousClose × 100`, como string de dos decimales, sin símbolo `%` y con `ROUND_HALF_UP`; mide el precio del activo, no el rendimiento del usuario. Se elige el registro por `date DESC NULLS LAST, id DESC`, igual que para las otras lecturas de cotizaciones. Sin registro, los tres campos son `null`. Si el registro seleccionado carece de cierre, `lastClose` y la variación son `null`; si carece de fecha, `quoteDate` y la variación son `null`, porque no se puede atribuir el cambio a un día. No se reemplaza un cierre faltante por otro más antiguo. Si `previousClose` falta o no es positivo, solo la variación es `null`. Un cierre negativo es un dato inválido y produce `500` controlado. Las cotizaciones del seed son históricas.
 
 El envoltorio `data/meta` es una convención de este proyecto y no implica cumplimiento de JSON:API. `meta.limit` indica el máximo de elementos por página, no la cantidad devuelta. `meta.offset` indica cuántos resultados se omiten. No se incluyen total, cantidad de páginas ni indicador de página siguiente.
 
@@ -53,7 +58,9 @@ El envoltorio `data/meta` es una convención de este proyecto y no implica cumpl
 
 `userId` debe escribirse con dígitos decimales y estar entre 1 y 2147483647. No admite query parameters ni paginación porque el total y las posiciones describen la cuenta completa. La ruta identifica al dueño. El endpoint pertenece a `PortfolioModule`, sin requerir un módulo de usuarios.
 
-La respuesta es `{ data: { userId, currency, totalValue, availableCash, positions } }`. `currency` es `ARS`. Las transferencias aportan efectivo, no una posición adicional de moneda. Solo movimientos `FILLED` afectan el cálculo. Las posiciones de cantidad cero se omiten y las restantes se ordenan por ticker/id, con ticker nulo al final.
+La respuesta es `{ data: { userId, currency, totalValue, cashBalance, reservedCash, availableCash, positions } }`. `currency` es `ARS`. Las transferencias aportan efectivo, no una posición adicional de moneda. Los movimientos `FILLED` determinan saldo, posiciones y patrimonio. Las órdenes `NEW` reservan capacidad de operación sin modificar esos valores ejecutados.
+
+`cashBalance` es el efectivo ejecutado. `reservedCash` suma `size × price` para compras `NEW` y `availableCash` es la diferencia entre ambos. `totalValue` usa `cashBalance`, porque una reserva no reduce el patrimonio. Las posiciones de cantidad ejecutada cero se omiten y las restantes se ordenan por ticker/id, con ticker nulo al final.
 
 Cada posición contiene:
 
@@ -62,6 +69,8 @@ Cada posición contiene:
 | `instrumentId`               | Entero.                                                                                                                                                                |
 | `ticker`, `name`             | String o `null`, sin reemplazar datos ausentes.                                                                                                                        |
 | `quantity`                   | Entero con signo, reconstruido del historial.                                                                                                                          |
+| `reservedQuantity`           | Cantidad comprometida por ventas `NEW`. No reduce la tenencia ejecutada.                                                                                               |
+| `availableQuantity`          | Máximo entre `quantity − reservedQuantity` y cero. Es la cantidad disponible para nuevas ventas.                                                                       |
 | `marketPrice`                | Último `close` disponible.                                                                                                                                             |
 | `marketValue`                | Cantidad × precio, conservando el signo.                                                                                                                               |
 | `costBasis`                  | Costo restante por promedio ponderado móvil. Es `null` si hubo sobreventa.                                                                                             |
@@ -69,19 +78,19 @@ Cada posición contiene:
 | `dailyPriceChangePercentage` | `(close − previousClose) / previousClose × 100`. Es `null` si el precio anterior falta o no es positivo. Mide la variación del precio, no el rendimiento de la cuenta. |
 | `quoteDate`                  | Fecha `YYYY-MM-DD` de la cotización utilizada.                                                                                                                         |
 
-Los importes (también `totalValue` y `availableCash`) y porcentajes se presentan como strings de dos decimales, sin símbolo `%`, con `ROUND_HALF_UP`. El cálculo conserva precisión interna hasta la presentación. Las cotizaciones pueden ser históricas y no se simula el mercado.
+Los importes, incluidos `totalValue`, `cashBalance`, `reservedCash` y `availableCash`, y los porcentajes se presentan como strings de dos decimales, sin símbolo `%`, con `ROUND_HALF_UP`. El cálculo conserva precisión interna hasta la presentación. Las cotizaciones pueden ser históricas y no se simula el mercado.
 
-Con el seed, el usuario 1 devuelve efectivo `753000.00` y total `889756.00`:
+Con el seed, el usuario 1 devuelve saldo `753000.00`, efectivo reservado `125500.00`, disponible `627500.00` y total `889756.00`. Las reservas corresponden a dos compras LIMIT `NEW` por `35500.00` y `90000.00`:
 
-| Ticker | Cantidad | Valor     | Costo     | Rendimiento (%) |
-| ------ | -------- | --------- | --------- | --------------- |
-| BMA    | −10      | −15028.00 | `null`    | `null`          |
-| METR   | 500      | 114750.00 | 125000.00 | −8.20           |
-| PAMP   | 40       | 37034.00  | 37200.00  | −0.45           |
+| Ticker | Cantidad | Reservada | Disponible | Valor     | Costo     | Rendimiento (%) |
+| ------ | -------- | --------- | ---------- | --------- | --------- | --------------- |
+| BMA    | −10      | 0         | 0          | −15028.00 | `null`    | `null`          |
+| METR   | 500      | 0         | 500        | 114750.00 | 125000.00 | −8.20           |
+| PAMP   | 40       | 0         | 40         | 37034.00  | 37200.00  | −0.45           |
 
 La posición negativa heredada se informa y genera un warning interno, sin campos adicionales ni correcciones de datos. No implica soporte de ventas en corto. Si falta el instrumento, la fecha o el precio necesario para valuar una posición abierta, se devuelve `500` controlado, no un total parcial.
 
-Un usuario existente sin movimientos devuelve `200` con importes `"0.00"` y `positions: []`. Uno inexistente devuelve `404`.
+Un usuario existente sin movimientos devuelve `200` con los cuatro importes en `"0.00"` y `positions: []`. Uno inexistente devuelve `404`.
 
 ## Errores HTTP
 
@@ -126,12 +135,15 @@ Permite enviar una orden de compra o venta (`BUY` o `SELL`), ya sea por cantidad
 - Esto también aplica a una orden `REJECTED`: es un resultado de negocio persistido y el reintento devuelve el mismo `id` y estado.
 - Reutilizarla para ese usuario con un payload diferente devuelve `409 IDEMPOTENCY_CONFLICT`.
 - Los importes se comparan normalizados: por ejemplo, `"90"` y `"90.00"` representan el mismo valor.
-- Un fallo técnico ocurrido durante el procesamiento de la orden se revierte hasta un savepoint y se confirma como `500` junto con la clave, sin crear la orden. Su repetición devuelve el mismo código y Problem Details, incluso si el servicio se recuperó.
+- Un fallo técnico inesperado durante la operación se revierte hasta un savepoint y se confirma como `500` junto con la clave, sin crear la orden. Su repetición devuelve el mismo resultado.
+- Si falta el último `close` para una MARKET, se devuelve `500 MARKET_DATA_UNAVAILABLE` sin guardar orden ni clave. Una vez disponible la cotización, se puede reintentar con la misma clave.
 - Si no puede confirmarse el registro idempotente —por ejemplo, por pérdida de conexión o commit incierto— no se afirma que el `500` haya quedado guardado. Si el commit de la orden sí ocurrió pero se perdió la respuesta, el reintento recupera la orden.
 
 Las claves no expiran automáticamente en este alcance. El cliente debe generar una clave distinta para cada intención de crear una orden.
 
-Un `500` con `Idempotency-Outcome: finalized` confirma que ese fallo quedó guardado y que no se creó una orden: repetir la clave devuelve el mismo `500`. Para intentar la orden después de corregir el problema, el cliente debe iniciar una intención nueva con otra clave. Ante timeout o `500` **sin** esa cabecera, el resultado puede ser incierto: el cliente conserva clave y cuerpo, espera y reintenta con límite de intentos. Si no logra resolverlo, debe informar que no pudo confirmar el estado, sin afirmar que la orden se creó o se rechazó.
+Un `500` con `Idempotency-Outcome: finalized` confirma un fallo guardado sin orden: repetir la clave devuelve el mismo `500`; una nueva intención requiere otra clave. `MARKET_DATA_UNAVAILABLE` se devuelve **sin** esa cabecera porque la transacción se revierte y no crea orden ni clave. Ante otros `500` sin cabecera o un timeout, el resultado puede ser incierto: el cliente conserva clave y cuerpo y reintenta con límite de intentos, sin asumir que la orden se creó o rechazó.
+
+Las claves que ya tenían un resultado confirmado conservan ese resultado; la regla de reintento por cotización ausente se aplica a intentos nuevos.
 
 ### Cuerpo de la solicitud
 
@@ -152,12 +164,14 @@ Un `500` con `Idempotency-Outcome: finalized` confirma que ese fallo quedó guar
 - Para órdenes `MARKET`, el precio aplicable es el último valor `close` disponible del instrumento en `marketdata`.
 - Para órdenes `LIMIT`, el precio aplicable es el `price` límite provisto.
 - **Validación de disponibilidad**:
-  - `BUY`: se valida que el usuario posea efectivo suficiente (`availableCash >= precio × cantidad`).
-  - `SELL`: se valida que el usuario posea tenencia suficiente de ese instrumento (`positions[instrumentId] >= cantidad`).
-- Si los recursos son insuficientes, la orden se considera rechazada por el mercado, **se persiste** con estado `REJECTED` y devuelve `201 Created` informando el rechazo como auditoría operativa.
+  - `BUY`: se valida que el efectivo no reservado alcance (`availableCash >= precio × cantidad`).
+  - `SELL`: se valida que las acciones no reservadas alcancen (`availableQuantity >= cantidad`).
+- Si los recursos son insuficientes, el control previo a la operación la **persiste** con estado `REJECTED` y devuelve `201 Created`. El motivo queda en el log interno y no amplía el contrato de la orden.
 - Si los recursos son suficientes:
   - Una orden `MARKET` se ejecuta inmediatamente y se persiste con estado `FILLED`.
-  - Una orden `LIMIT` se persiste con estado `NEW`. No reserva recursos a futuro bajo los supuestos actuales.
+  - Una orden `LIMIT` se persiste con estado `NEW` y aparece como reserva en consultas posteriores de portfolio.
+
+La disponibilidad se reconstruye desde los movimientos `FILLED` y las órdenes `NEW` previas. El bloqueo transaccional por usuario serializa solicitudes simultáneas, por lo que una segunda orden se valida después de incorporar la reserva confirmada por la primera.
 
 ### Respuesta exitosa (`201 Created`)
 
@@ -190,17 +204,3 @@ Un `500` con `Idempotency-Outcome: finalized` confirma que ese fallo quedó guar
 | Orden resulta en 0 acciones o inválida       | `422`  | `INVALID_ORDER`           |
 | Cotización ausente para orden MARKET         | `500`  | `MARKET_DATA_UNAVAILABLE` |
 | Fallo técnico inesperado                     | `500`  | `INTERNAL_ERROR`          |
-
-## Persistencia y verificaciones
-
-Se comprobó la búsqueda compilada y se revisó su SQL: una consulta, cuatro columnas, filtro de tipo, búsqueda parametrizada y límite/offset. Se inspeccionó el esquema remoto mediante lecturas y se alineó la nulabilidad de las cuatro entidades, sin modificar tablas ni datos.
-
-Las pruebas HTTP usan PostgreSQL local aislado: comprueban búsqueda por ambos campos, orden y páginas, ausencia de resultados, campos nulos, exclusión de moneda y tipo nulo, un comodín literal y casos representativos de entradas inválidas y errores técnicos. Crean y eliminan sus propios instrumentos. No hay un fixture con un tipo desconocido explícito ni una prueba automatizada propia del esquema Swagger.
-
-No se midió performance ni se agregaron índices de búsqueda. La decisión de postergar `pg_trgm` se explica en [supuestos y decisiones](../assumptions.md#búsqueda-e-índices).
-
-Portfolio tiene cinco tests de cálculo y cinco HTTP sin PostgreSQL: promedio móvil y precisión, cierre/reapertura, sobreventa, precio ausente, contrato completo del seed y warning, cuenta vacía/inexistente, validación y errores controlados/sanitizados. Su adaptador usa `REPEATABLE READ` y `READ ONLY`, con el mismo manager y lecturas por lote. No hay consultas por posición.
-
-Órdenes tiene pruebas del dominio y del contrato HTTP sin PostgreSQL. El test funcional aislado crea sus propios usuarios, instrumentos, cotización y transferencias: comprueba una MARKET persistida, dos compras simultáneas sobre el mismo saldo —una `FILLED` y otra `REJECTED`—, dos solicitudes concurrentes con la misma clave que obtienen una sola orden, el conflicto por payload diferente y el rechazo sin persistencia de un instrumento `MONEDA`. Los fixtures y claves se eliminan al terminar.
-
-La API compilada se comprobó contra la base proporcionada, únicamente con GET: usuario 1 (`200`, total `889756.00`), usuario 2 vacío (`200`), usuario inexistente (`404`) e ID inválido (`400`, sin consultar la base). Se revisaron Swagger y las sentencias de la transacción: cuatro SELECT para la cuenta con posiciones, dos para la vacía y uno para el usuario inexistente. No se modificaron datos ni se midió performance. Esa comprobación fue anterior a mover la consulta de existencia al caso de uso. Ahora se hace antes del snapshot financiero, sin sumar SELECT, y el refactor se verifica con mocks, no contra PostgreSQL.

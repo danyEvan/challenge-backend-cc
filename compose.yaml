@@ -1,6 +1,19 @@
 name: cocos-backend-challenge
 
 services:
+  api:
+    profiles: ['app']
+    build: .
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://poc:poc@postgres:5432/neondb?sslmode=disable
+    ports:
+      - '127.0.0.1:3000:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   postgres:
     image: postgres:17-alpine
     environment:

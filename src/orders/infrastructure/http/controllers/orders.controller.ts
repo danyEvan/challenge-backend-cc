@@ -85,7 +85,7 @@ export class OrdersController {
   })
   @ApiInternalServerErrorResponse({
     description:
-      'Market data unavailable or unexpected failure. Idempotency-Outcome: finalized identifies a committed, replayable failure; without it the result may be uncertain.',
+      'Missing market data returns 500 without creating an order or saving the key, so the same key can be retried. Idempotency-Outcome: finalized identifies a committed, replayable unexpected failure.',
     headers: {
       'Idempotency-Outcome': {
         description: 'finalized when the failure was committed for this key',

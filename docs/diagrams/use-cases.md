@@ -12,7 +12,7 @@ flowchart LR
         Submit([Enviar orden<br/>BUY o SELL])
 
         Catalog([Listar catálogo<br/>negociable])
-        Resources([Reconstruir efectivo<br/>y tenencias])
+        Resources([Reconstruir saldo,<br/>tenencias y reservas])
         Valuation([Valuar posiciones<br/>y calcular rendimientos])
         Quantity([Indicar cantidad exacta<br/>o monto en ARS])
         OrderType([Elegir MARKET<br/>o LIMIT])

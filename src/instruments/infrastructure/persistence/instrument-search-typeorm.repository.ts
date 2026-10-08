@@ -4,8 +4,13 @@ import { Repository } from 'typeorm';
 import { InstrumentSearchRepository } from '#src/instruments/application/ports/instrument-search.repository.js';
 import type { InstrumentSearchCriteria } from '#src/instruments/application/interfaces/instrument-search-criteria.js';
 import type { InstrumentSearchItem } from '#src/instruments/application/interfaces/instrument-search-item.js';
+import {
+  calculatePercentageChange,
+  formatPercentage,
+} from '#src/shared/domain/money/percentage-change.js';
 import { InstrumentType } from '#src/shared/domain/trading/trading.types.js';
 import { InstrumentEntity } from '#src/shared/infrastructure/persistence/entities/instrument.entity.js';
+import { TradingTypeOrmRepository } from '#src/shared/infrastructure/persistence/trading-typeorm.repository.js';
 
 @Injectable()
 export class InstrumentSearchTypeOrmRepository extends InstrumentSearchRepository {
@@ -47,11 +52,30 @@ export class InstrumentSearchTypeOrmRepository extends InstrumentSearchRepositor
       .skip(criteria.offset)
       .getMany();
 
-    return rows.map(({ id, ticker, name, type }) => ({
-      id,
-      ticker,
-      name,
-      type: type!, // Ajuste porque TypeORM devuelve el tipo como InstrumentType | null
-    }));
+    const quotes = await new TradingTypeOrmRepository(
+      this.repository.manager,
+    ).findLatestQuotes(rows.map(({ id }) => id));
+
+    return rows.map(({ id, ticker, name, type }) => {
+      const quote = quotes.get(id);
+      if (quote?.close?.isNegative()) {
+        throw new Error('Latest instrument close cannot be negative');
+      }
+
+      return {
+        id,
+        ticker,
+        name,
+        type: type!, // Ajuste porque TypeORM devuelve el tipo como InstrumentType | null
+        lastClose: quote?.close?.toString() ?? null,
+        quoteDate: quote?.date ?? null,
+        dailyPriceChangePercentage:
+          quote?.close && quote.date !== null
+            ? formatPercentage(
+                calculatePercentageChange(quote.close, quote.previousClose),
+              )
+            : null,
+      };
+    });
   }
 }

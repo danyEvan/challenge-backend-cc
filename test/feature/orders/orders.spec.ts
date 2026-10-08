@@ -141,6 +141,7 @@ describe('Orders HTTP (without PostgreSQL)', () => {
       .expect(201);
 
     expect(response.body.data.status).toBe('REJECTED');
+    expect(response.body.data).not.toHaveProperty('rejectionReason');
   });
 
   it('rejects an order resulting in 0 shares with 422 Problem Details', async () => {
@@ -212,11 +213,11 @@ describe('Orders HTTP (without PostgreSQL)', () => {
     expect(response.headers['idempotency-outcome']).toBeUndefined();
   });
 
-  it('returns the recorded 500 as Problem Details', async () => {
+  it('returns an unexpected recorded 500 as Problem Details', async () => {
     repository.submitAtomically.mockRejectedValueOnce(
       new RecordedOrderFailureError(
-        'MARKET_DATA_UNAVAILABLE',
-        'Latest market quote is not available for this instrument',
+        'INTERNAL_ERROR',
+        'An unexpected error occurred.',
       ),
     );
 
@@ -234,7 +235,7 @@ describe('Orders HTTP (without PostgreSQL)', () => {
       .expect('Content-Type', /application\/problem\+json/)
       .expect('Idempotency-Outcome', 'finalized');
 
-    expect(response.body.code).toBe('MARKET_DATA_UNAVAILABLE');
+    expect(response.body.code).toBe('INTERNAL_ERROR');
   });
 
   it('returns 409 when an idempotency key is reused with another request', async () => {

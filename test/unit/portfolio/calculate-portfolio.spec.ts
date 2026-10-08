@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AccountMovement } from '#src/shared/domain/account/account-movement.js';
+import { InvalidAccountHistoryError } from '#src/shared/domain/account/errors/invalid-account-history.error.js';
 import { Money } from '#src/shared/domain/money/money.js';
 import type { MarketQuote } from '#src/shared/domain/trading/market-quote.js';
 import {
@@ -14,16 +15,18 @@ function movement(
   id: number,
   side: AccountMovement['side'],
   size: number,
-  price: string,
+  price: string | null,
+  status: AccountMovement['status'] = OrderStatus.FILLED,
+  type: AccountMovement['type'] = OrderType.MARKET,
 ): AccountMovement {
   return {
     id,
     instrumentId: 1,
     side,
     size,
-    price: Money.from(price),
-    status: OrderStatus.FILLED,
-    type: OrderType.MARKET,
+    price: price === null ? null : Money.from(price),
+    status,
+    type,
     datetime: new Date('2023-07-12T12:00:00Z'),
   };
 }
@@ -62,14 +65,55 @@ describe('calculatePortfolio', () => {
       quotes(),
     );
 
+    expect(result.cashBalance.toString()).toBe('6400.00');
+    expect(result.reservedCash.toString()).toBe('0.00');
     expect(result.availableCash.toString()).toBe('6400.00');
     expect(result.totalValue.toString()).toBe('10400.00');
     const position = result.positions[0]!;
     expect(position.quantity).toBe(20);
+    expect(position.reservedQuantity).toBe(0);
+    expect(position.availableQuantity).toBe(20);
     expect(position.marketValue.toString()).toBe('4000.00');
     expect(position.costBasis?.toString()).toBe('3750.00');
     expect(position.returnPercentage?.toFixed(2)).toBe('6.67');
     expect(position.dailyPriceChangePercentage?.toFixed(2)).toBe('11.11');
+  });
+
+  it('reserves cash and shares without changing executed positions or total value', () => {
+    const result = calculatePortfolio(
+      [
+        movement(1, OrderSide.CASH_IN, 10000, null),
+        movement(2, OrderSide.BUY, 10, '100'),
+        movement(3, OrderSide.BUY, 2, '300', OrderStatus.NEW, OrderType.LIMIT),
+        movement(4, OrderSide.SELL, 3, '250', OrderStatus.NEW, OrderType.LIMIT),
+      ],
+      quotes(),
+    );
+
+    expect(result.cashBalance.toString()).toBe('9000.00');
+    expect(result.reservedCash.toString()).toBe('600.00');
+    expect(result.availableCash.toString()).toBe('8400.00');
+    expect(result.totalValue.toString()).toBe('11000.00');
+    expect(result.positions[0]).toMatchObject({
+      quantity: 10,
+      reservedQuantity: 3,
+      availableQuantity: 7,
+    });
+  });
+
+  it('fails when a pending order cannot produce a reliable reservation', () => {
+    const invalidPendingOrder = movement(
+      1,
+      OrderSide.BUY,
+      2,
+      null,
+      OrderStatus.NEW,
+      OrderType.LIMIT,
+    );
+
+    expect(() => calculatePortfolio([invalidPendingOrder], new Map())).toThrow(
+      InvalidAccountHistoryError,
+    );
   });
 
   it('keeps fractional average costs unrounded until presentation', () => {

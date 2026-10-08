@@ -18,7 +18,7 @@ async function bootstrap() {
     .setVersion('1.0.0')
     .addTag('Health', 'Application and database readiness')
     .addTag('Instruments', 'Search market assets by ticker or name')
-    .addTag('Portfolio', 'Account cash, positions and valuation')
+    .addTag('Portfolio', 'Account cash, reservations, positions and valuation')
     .addTag('Orders', 'Submit BUY or SELL market and limit orders')
     .build();
 

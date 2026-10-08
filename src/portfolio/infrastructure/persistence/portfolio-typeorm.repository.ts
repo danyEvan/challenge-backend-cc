@@ -16,7 +16,7 @@ export class PortfolioTypeOrmRepository extends PortfolioRepository {
       await manager.query('SET TRANSACTION READ ONLY');
       const trading = new TradingTypeOrmRepository(manager);
 
-      const movements = await trading.findExecutedMovements(userId);
+      const movements = await trading.findAvailabilityMovements(userId);
       const resources = calculateAccountResources(movements);
       const instrumentIds = [...resources.positions.keys()];
 

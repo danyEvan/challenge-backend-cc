@@ -48,7 +48,7 @@ describe('calculateAccountResources', () => {
       }),
     ]);
 
-    expect(result.availableCash.toString()).toBe('879.95');
+    expect(result.cashBalance.toString()).toBe('879.95');
     expect(result.positions).toEqual(
       new Map([
         [1, 2],
@@ -74,7 +74,7 @@ describe('calculateAccountResources', () => {
       }),
     ]);
 
-    expect(result.availableCash.toString()).toBe('1000.00');
+    expect(result.cashBalance.toString()).toBe('1000.00');
     expect(result.positions.size).toBe(0);
   });
 
@@ -84,7 +84,7 @@ describe('calculateAccountResources', () => {
       movement({ side: OrderSide.SELL, size: 2, price: Money.from('12') }),
     ]);
 
-    expect(result.availableCash.toString()).toBe('4.00');
+    expect(result.cashBalance.toString()).toBe('4.00');
     expect(result.positions.has(1)).toBe(false);
   });
 
@@ -100,7 +100,7 @@ describe('calculateAccountResources', () => {
       }),
     ]);
 
-    expect(result.availableCash.toString()).toBe('-4900.00');
+    expect(result.cashBalance.toString()).toBe('-4900.00');
     expect(result.positions.get(31)).toBe(-10);
   });
 

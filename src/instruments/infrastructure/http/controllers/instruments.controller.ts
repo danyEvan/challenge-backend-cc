@@ -26,7 +26,7 @@ export class InstrumentsController {
   @ApiOperation({
     summary: 'Search tradable instruments by ticker or name',
     description:
-      'Returns only tradable stock instruments. Currency represents account cash and is excluded. An absent or blank search lists the catalog ordered by ticker, then id; nullable tickers sort last. No matches returns an empty page.',
+      'Returns only tradable stock instruments with the close, date and daily price change from their latest available marketdata row when present. Quotes may be historical or undated. Currency represents account cash and is excluded. An absent or blank search lists the catalog ordered by ticker, then id; nullable tickers sort last. No matches returns an empty page.',
   })
   @ApiOkResponse({ type: InstrumentSearchResponseDto })
   @ApiBadRequestResponse({

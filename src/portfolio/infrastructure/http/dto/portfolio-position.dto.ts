@@ -18,6 +18,20 @@ export class PortfolioPositionDto implements PortfolioPosition {
   })
   quantity!: number;
 
+  @ApiProperty({
+    type: 'integer',
+    example: 0,
+    description: 'Quantity reserved by NEW SELL orders.',
+  })
+  reservedQuantity!: number;
+
+  @ApiProperty({
+    type: 'integer',
+    example: 40,
+    description: 'Executed quantity available after reservations.',
+  })
+  availableQuantity!: number;
+
   @ApiProperty({ example: '925.85' })
   marketPrice!: string;
 

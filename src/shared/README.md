@@ -17,9 +17,11 @@ Crear `Money` desde strings decimales o `Decimal`. Las operaciones usan 40 dígi
 
 Conservar precisión durante el cálculo y definir el formato HTTP al implementar cada contrato.
 
-## Reconstrucción de recursos
+`calculatePercentageChange` y `formatPercentage` comparten entre portfolio y catálogo la fórmula `(actual − anterior) / anterior × 100` y su presentación con dos decimales. Si la base falta o no es positiva, el porcentaje es `null`.
 
-`calculateAccountResources` devuelve efectivo disponible y cantidades por instrumento. Cuenta únicamente movimientos `FILLED`, incluyendo MARKET y LIMIT históricas.
+## Reconstrucción de recursos y disponibilidad
+
+`calculateAccountResources` devuelve el saldo ejecutado y las cantidades por instrumento. Cuenta únicamente movimientos `FILLED`, incluyendo MARKET y LIMIT históricas.
 
 ```text
 efectivo = CASH_IN.size − CASH_OUT.size
@@ -30,17 +32,19 @@ cantidad = SUM(BUY.size) − SUM(SELL.size)
 ```
 
 - Las transferencias usan `size` como pesos, sin multiplicar por el precio.
-- Los estados `NEW`, `REJECTED` y `CANCELLED` no afectan recursos, bajo la política de reservas documentada en [supuestos](../../docs/assumptions.md).
+- Los estados `NEW`, `REJECTED` y `CANCELLED` no alteran el saldo ni las tenencias ejecutadas.
 - Conservar saldos y cantidades negativos heredados y omitir posiciones cerradas con cantidad cero.
 - Exigir cantidades ejecutadas positivas y enteras seguras. Comprobar también el rango de las cantidades acumuladas.
 - Un precio histórico ausente o negativo en una compra/venta ejecutada produce `InvalidAccountHistoryError`. Un precio conocido de cero permite reconstruir recursos.
 - La validación de órdenes nuevas y el cálculo de costo/rendimiento pertenecen a sus features.
 
+`calculateAccountAvailability` reutiliza esos recursos ejecutados y descuenta las órdenes `NEW`. Una compra reserva `size × price` y una venta reserva acciones del instrumento. Devuelve `cashBalance`, `reservedCash`, `availableCash` y, por posición, cantidad ejecutada, reservada y disponible. Portfolio presenta este resultado y orders lo usa para evaluar nuevas solicitudes con la misma regla.
+
 ## Lecturas
 
 `UserRepository`, en `application/ports/user.repository.ts`, declara `exists(userId)`. `UserTypeOrmRepository` implementa la consulta a `UserEntity`. El caso de uso decide qué hacer si no existe. `PortfolioModule` registra el adaptador mediante una factory.
 
-`TradingRepository` es el contrato abstracto para consultar movimientos ejecutados y últimas cotizaciones. Está en `application/ports/trading.repository.ts`. Ambos puertos también funcionan como tokens de inyección.
+`TradingRepository` es el contrato abstracto para consultar los movimientos relevantes para disponibilidad y las últimas cotizaciones. Está en `application/ports/trading.repository.ts`. Ambos puertos también funcionan como tokens de inyección.
 
 Los movimientos se ordenan por `datetime ASC, id ASC`. Los campos imprescindibles ausentes producen `InvalidAccountHistoryError`. El tipo histórico puede ser nulo porque el estado ejecutado, no el tipo, determina su efecto. Las cotizaciones se eligen por instrumento y `date DESC NULLS LAST, id DESC`, sin exigir la fecha actual. Un instrumento sin cotización queda ausente. El precio o la fecha permanecen nulos para que el consumidor informe datos insuficientes.
 

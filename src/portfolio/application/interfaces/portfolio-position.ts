@@ -3,6 +3,8 @@ export interface PortfolioPosition {
   readonly ticker: string | null;
   readonly name: string | null;
   readonly quantity: number;
+  readonly reservedQuantity: number;
+  readonly availableQuantity: number;
   readonly marketPrice: string;
   readonly marketValue: string;
   readonly costBasis: string | null;

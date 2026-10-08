@@ -4,6 +4,8 @@ export interface PortfolioResult {
   readonly userId: number;
   readonly currency: 'ARS';
   readonly totalValue: string;
+  readonly cashBalance: string;
+  readonly reservedCash: string;
   readonly availableCash: string;
   readonly positions: PortfolioPosition[];
 }

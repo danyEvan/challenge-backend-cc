@@ -7,6 +7,7 @@
 # En replay, comparar status y JSON, especialmente data.id y data.datetime.
 # Ignorar el header HTTP Date y la hora del plugin: corresponden a cada intercambio, no a la orden.
 # Los importes exactos de portfolio corresponden al seed; comprobarlos antes de ejecutar los POST.
+# MARKET sin cotización devuelve 500 MARKET_DATA_UNAVAILABLE sin guardar la clave: reintentarla cuando haya cierre.
 
 ### Application and database readiness - 200
 # Ejecutar primero. Con API y PostgreSQL disponibles responde 200.
@@ -14,7 +15,9 @@ GET {{baseUrl}}/health
 Accept: application/json, application/problem+json
 
 ### Search by ticker - 200
-# Con el seed provisto devuelve GGAL (id 34).
+# Con el seed provisto devuelve GGAL (id 34), lastClose 885.80,
+# quoteDate 2023-07-14 y dailyPriceChangePercentage -3.48.
+# Es un cierre histórico, no un precio en tiempo real.
 GET {{baseUrl}}/instruments?search=ggal
 Accept: application/json, application/problem+json
 
@@ -54,12 +57,13 @@ GET {{baseUrl}}/instruments?limit=101
 Accept: application/json, application/problem+json
 
 ### User portfolio - 200
-# Seed: efectivo 753000.00, total 889756.00; BMA conserva -10 acciones.
+# Seed: saldo 753000.00, reservado 125500.00, disponible 627500.00 y total 889756.00.
+# BMA conserva -10 acciones. Las compras NEW no aumentan posiciones.
 GET {{baseUrl}}/users/1/portfolio
 Accept: application/json, application/problem+json
 
 ### Empty portfolio - 200
-# Seed: usuario existente sin movimientos; importes 0.00 y positions=[].
+# Seed: usuario existente sin movimientos. Saldo, reservas, disponible y total son 0.00.
 GET {{baseUrl}}/users/2/portfolio
 Accept: application/json, application/problem+json
 
@@ -120,7 +124,7 @@ Idempotency-Key: 33333333-3333-4333-8333-333333333333
 }
 
 ### Submit LIMIT BUY order by size - 201
-# Requiere precio positivo; si no excede efectivo actual queda NEW.
+# Requiere precio positivo; si alcanza el efectivo no reservado queda NEW.
 POST {{baseUrl}}/orders
 Content-Type: application/json
 Accept: application/json, application/problem+json
@@ -136,8 +140,8 @@ Idempotency-Key: 44444444-4444-4444-8444-444444444444
 }
 
 ### Submit order with insufficient cash - 201 REJECTED
-# Si los fondos no alcanzan, la orden se persiste como REJECTED.
-# Ejecutar este mismo bloque dos veces: la segunda respuesta conserva id, datetime y estado REJECTED.
+# Si los fondos no alcanzan, la orden queda REJECTED.
+# Ejecutar este mismo bloque dos veces: la segunda respuesta conserva el resultado completo.
 POST {{baseUrl}}/orders
 Content-Type: application/json
 Accept: application/json, application/problem+json

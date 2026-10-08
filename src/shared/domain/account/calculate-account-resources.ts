@@ -7,18 +7,18 @@ import {
 import { InvalidAccountHistoryError } from '#src/shared/domain/account/errors/invalid-account-history.error.js';
 
 export type AccountResources = Readonly<{
-  availableCash: Money;
+  cashBalance: Money;
   positions: ReadonlyMap<number, number>;
 }>;
 
 export function calculateAccountResources(
   movements: readonly AccountMovement[],
 ): AccountResources {
-  let availableCash = Money.zero();
+  let cashBalance = Money.zero();
   const positions = new Map<number, number>();
 
   for (const movement of movements) {
-    // Las ordenes NEW no reservan
+    // Las reservas se calculan aparte de los movimientos ejecutados.
     if (movement.status !== OrderStatus.FILLED) {
       continue;
     }
@@ -31,12 +31,10 @@ export function calculateAccountResources(
 
     switch (movement.side) {
       case OrderSide.CASH_IN:
-        availableCash = availableCash.add(Money.from(String(movement.size)));
+        cashBalance = cashBalance.add(Money.from(String(movement.size)));
         break;
       case OrderSide.CASH_OUT:
-        availableCash = availableCash.subtract(
-          Money.from(String(movement.size)),
-        );
+        cashBalance = cashBalance.subtract(Money.from(String(movement.size)));
         break;
       case OrderSide.BUY:
       case OrderSide.SELL: {
@@ -52,9 +50,9 @@ export function calculateAccountResources(
         }
         const isBuy = movement.side === OrderSide.BUY;
         const tradeValue = movement.price.multiply(movement.size);
-        availableCash = isBuy
-          ? availableCash.subtract(tradeValue)
-          : availableCash.add(tradeValue);
+        cashBalance = isBuy
+          ? cashBalance.subtract(tradeValue)
+          : cashBalance.add(tradeValue);
 
         const quantity =
           (positions.get(movement.instrumentId) ?? 0) +
@@ -80,5 +78,5 @@ export function calculateAccountResources(
     }
   }
 
-  return { availableCash, positions };
+  return { cashBalance, positions };
 }
